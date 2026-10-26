@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/BackendModules/">
+    <Folder Name="/BackendModules/FloorPlanService/">
+      <Project Path="BackendModules/FloorPlanService/FloorPlanService.Api/FloorPlanService.Api.csproj" />
+      <Project Path="BackendModules/FloorPlanService/FloorPlanService.Application/FloorPlanService.Application.csproj" />
+      <Project Path="BackendModules/FloorPlanService/FloorPlanService.Domain/FloorPlanService.Domain.csproj" />
+      <Project Path="BackendModules/FloorPlanService/FloorPlanService.Infrastructure/FloorPlanService.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/BackendModules/ProductCatalogService/">
+      <Project Path="BackendModules/ProductCatalogService/ProductCatalogService.Api/ProductCatalogService.Api.csproj" />
+      <Project Path="BackendModules/ProductCatalogService/ProductCatalogService.Application/ProductCatalogService.Application.csproj" />
+      <Project Path="BackendModules/ProductCatalogService/ProductCatalogService.Domain/ProductCatalogService.Domain.csproj" />
+      <Project Path="BackendModules/ProductCatalogService/ProductCatalogService.Infrastructure/ProductCatalogService.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/BackendModules/ProjectExplorerService/">
+      <Project Path="BackendModules/ProjectExplorerService/ProjectExplorerService.Api/ProjectExplorerService.Api.csproj" />
+      <Project Path="BackendModules/ProjectExplorerService/ProjectExplorerService.Application/ProjectExplorerService.Application.csproj" />
+      <Project Path="BackendModules/ProjectExplorerService/ProjectExplorerService.Domain/ProjectExplorerService.Domain.csproj" />
+      <Project Path="BackendModules/ProjectExplorerService/ProjectExplorerService.Infrastructure/ProjectExplorerService.Infrastructure.csproj" />
+    </Folder>
+    <Folder Name="/BackendModules/Shared/">
+      <Project Path="BackendModules/Shared/BuildingBlocks/BuildingBlocks.csproj" />
+    </Folder>
+  </Folder>
+</Solution>

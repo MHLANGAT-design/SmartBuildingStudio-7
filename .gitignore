@@ -1,0 +1,49 @@
+﻿# ════════════════════════════════════════════════════════════════
+# SmartBuildingStudio — root .gitignore
+# ════════════════════════════════════════════════════════════════
+
+# ── .NET build artifacts ──
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.nupkg
+
+# ── Node / Vite ──
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ── IDE ──
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Environment / secrets ──
+.env
+.env.local
+.env.*.local
+appsettings.Local.json
+appsettings.*.Local.json
+
+# ════════════════════════════════════════════════════════════════
+# Uploaded catalog files (IES, LDT, datasheets)
+# Regenerated from DB / re-uploaded on deployment.
+# .gitkeep preserves the directory structure on clone.
+# ════════════════════════════════════════════════════════════════
+BackendModules/ProductCatalogService/ProductCatalogService.Api/App_Data/*
+!BackendModules/ProductCatalogService/ProductCatalogService.Api/App_Data/.gitkeep

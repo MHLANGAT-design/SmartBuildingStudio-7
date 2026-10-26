@@ -1,0 +1,28 @@
+﻿
+FilePath                      
+--------                      
+Services\BuildingService.ts   
+Services\DocumentService.ts   
+Services\FloorService.ts      
+Services\ProjectExplorerApi.ts
+Services\ProjectService.ts    
+Services\structure.txt        
+
+Project Explorer Services Layer Core Registry Topology
+=============================================================================
+
+[Global Runtime Container Extra-Arguments Injection Context]
+  │
+  ├── ProjectExplorerApi.ts  <-- Unified entry facade orchestrator
+  │     │
+  │     ├── ProjectService.ts   <-- Handles explicit Project CRUD pipelines
+  │     ├── BuildingService.ts  <-- Handles parent-bound structural boundaries
+  │     ├── FloorService.ts     <-- Operates topological vertical levels
+  │     └── DocumentService.ts  <-- System launcher and version registry mappings
+  │
+  └── Infrastructure Invariant Matrix:
+        1. Direct fetch requests bypass state wrappers via standard JSON payloads.
+        2. Async thunks invoke these client facades to commit server actions.
+        3. Exception states bubble back explicitly to trigger error notifications.
+
+

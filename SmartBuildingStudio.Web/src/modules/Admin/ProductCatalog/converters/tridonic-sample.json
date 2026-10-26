@@ -1,0 +1,23 @@
+﻿[
+  {
+    "article_number": "28000678-TEST2",
+    "brand": "Tridonic",
+    "series": "premium (PRE)",
+    "dali_generation": "DALI-2",
+    "device_type": ["DT6"],
+    "electrical_specs": {
+      "output_type": "Constant Current (CC)",
+      "min_current_ma": 350,
+      "max_current_ma": 1050,
+      "current_step_ma": 1,
+      "max_wattage_w": 45,
+      "forward_voltage_range_v": "20-54"
+    },
+    "supported_features": {
+      "lumDATA": true,
+      "nfc_programming": true,
+      "dimming_range_percent": 0.1,
+      "dimming_technology": "Amplitude / PWM"
+    }
+  }
+]

@@ -1,0 +1,15 @@
+﻿Project Explorer Utilities Submodule Registry Schema
+=============================================================================
+
+Utils/
+├── structure.txt            <-- Operational blueprint map file
+├── ProjectTreeBuilder.ts    <-- Transforms raw array data maps to hierarchical structures
+├── ExplorerFiltering.ts     <-- Matches string configurations and validation filters
+├── ExplorerSorting.ts       <-- Enforces alpha-numeric array ordering rules
+└── ExplorerIcons.ts         <-- Resolves node design templates to visual UI elements
+
+Performance Matrix Invariant:
+-----------------------------------------------------------------------------
+1. Pure Logic Isolation: Functions are deterministic and decoupled from the React lifecycle.
+2. Index Integrity: Array lookup loops run under memoization bounds to protect performance.
+3. Path Integrity: Module resolutions satisfy the absolute path convention (@/).

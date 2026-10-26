@@ -1,0 +1,26 @@
+[
+  {
+    "productId": "XI040C110V054YPT2",
+    "productName": "XITANIUM 40W 0.10-1.1A 54V 120-277V DALI",
+    "family": "Xitanium",
+    "range": "Advance Xitanium DALI",
+    "daliVersion": "DALI-2",
+    "technicalData": {
+      "outputPowerW": 40,
+      "outputCurrentMinA": 0.1,
+      "outputCurrentMaxA": 1.1,
+      "outputVoltageMinV": 27,
+      "outputVoltageMaxV": 54,
+      "inputVoltageV": "120-277"
+    },
+    "certifications": ["UL8750", "UL1310", "UL935", "CSA-C22.2", "DALI-2"],
+    "features": {
+      "programmable": true,
+      "dimmingProtocol": "DALI",
+      "dimmingRange": "5-100%",
+      "lifetimeHours": 50000,
+      "warrantyYears": 5,
+      "protectionRating": "UL Dry & Damp"
+    }
+  }
+]

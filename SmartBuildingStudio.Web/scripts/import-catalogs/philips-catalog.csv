@@ -1,0 +1,6 @@
+Product_ID,Model_Name,Type,Wattage,Output_Current,Output_Voltage,Protocol,Application
+929002200506,LED Transformer 60W 24VDC DALI/TD,Constant Voltage,60W,2.5A,24V DC,DALI 2.0 / Touch & Dim,Linear Accent & Retail
+929002200606,LED Transformer 100W 24VDC DALI/TD,Constant Voltage,100W,4.16A,24V DC,DALI 2.0 / Touch & Dim,Linear Accent & Retail
+929002200706,LED Transformer 150W 24VDC DALI/TD,Constant Voltage,150W,6.25A,24V DC,DALI 2.0 / Touch & Dim,Linear Accent & Retail
+XI040C110V054YPT2,Xitanium DALI Linear Driver 40W,Constant Current,40W,0.1-1.1A,54V DC,DALI 2.0 / SimpleSet,Office & Indoor Linear
+929001506006,Xitanium 32W Downlight DALI Driver,Constant Current,32W,0.3-1.0A,48V DC,DALI 2.0,Downlights & Recessed Panels

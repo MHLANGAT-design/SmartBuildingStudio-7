@@ -1,0 +1,49 @@
+﻿
+FilePath                    
+--------                    
+Models\Building.ts          
+Models\ExplorerFilter.ts    
+Models\ExplorerNode.ts      
+Models\ExplorerStatistics.ts
+Models\Floor.ts             
+Models\Project.ts           
+Models\ProjectDocument.ts   
+Models\structure.txt  
+
+Smart Building Studio Workspace
+└── [Project] Corporate Headquarters
+    ├── [Building] Building A
+    │   ├── [Floor] Ground Floor
+    │   │   ├── [Folder] Floor Plans
+    │   │   │   ├── [Document] Architectural Plan
+    │   │   │   ├── [Document] Reflected Ceiling Plan
+    │   │   │   └── [Document] Lighting Base Plan
+    │   │   ├── [Folder] Fixture Layouts
+    │   │   │   ├── [Document] Revision A
+    │   │   │   └── [Document] Revision B
+    │   │   ├── [Folder] DALI Networks
+    │   │   │   ├── [Document] Network 1
+    │   │   │   └── [Document] Network 2
+    │   │   ├── [Folder] Emergency Lighting
+    │   │   │   └── [Document] Emergency Path Escape Map
+    │   │   └── [Folder] Reports
+    │   │       └── [Document] Load Calculation Report
+    │   └── [Floor] First Floor
+    │       └── [Folder] Floor Plans
+    │           └── [Document] Architectural Layout
+    └── [Building] Building B
+        └── [Floor] Ground Floor
+            └── [Folder] Floor Plans
+                └── [Document] Electrical Core Layout
+
+=============================================================================
+Architectural Constraints & Validation Matrix
+-----------------------------------------------------------------------------
+1. Navigation Path Integrity: Every route resolutions must resolve strictly via absolute paths (@/).
+2. Structural Folders: Logical sub-folders ("Floor Plans", "Fixture Layouts", etc.) are generated 
+   ephemerally by client tree parser engines. They contain no direct database entries.
+3. System Synchronization: State renders trigger immediately down the view hierarchy upon 
+   version trigger increment operations.
+      
+
+

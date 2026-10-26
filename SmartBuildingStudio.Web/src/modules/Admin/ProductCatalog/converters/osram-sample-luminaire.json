@@ -1,0 +1,40 @@
+{
+  "brand": "OSRAM / LEDVANCE",
+  "product_family": "LINEAR LED",
+  "product_id": "BATTEN LED 1200 14W 4000K",
+  "ean_code": "4058075000308",
+  "category": "Luminaires",
+  "sub_category": "Linear Indoor Lighting",
+  "application": ["Corridors", "Entrance areas", "Stairwells", "General indoor"],
+  "optical_specifications": {
+    "nominal_wattage": "14 W",
+    "luminous_flux": "1400 lm",
+    "luminous_efficacy": "100 lm/W",
+    "color_temperature": "4000 K",
+    "light_color": "Cool White",
+    "color_rendering_index_ra": "> 80",
+    "beam_angle": "140 °"
+  },
+  "electrical_data": {
+    "operating_voltage": "220-240 V",
+    "power_factor": "> 0.90",
+    "protection_class": "Class II",
+    "flicker_free": true
+  },
+  "physical_properties": {
+    "dimensions": {
+      "length": "1200 mm",
+      "width": "24 mm",
+      "height": "36 mm"
+    },
+    "ip_rating": "IP20",
+    "housing_material": "Polycarbonate",
+    "connection_type": "2-pin plug connection"
+  },
+  "performance": {
+    "average_lifetime_l70": "20000 h",
+    "ambient_temperature_range": "-20 to +40 °C",
+    "energy_savings": "Up to 45% compared to traditional fluorescent battens",
+    "daisy_chain_limit": "Rows of up to 10 luminaires possible"
+  }
+}

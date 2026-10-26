@@ -1,0 +1,39 @@
+BackendModules/
+├── FloorPlanService/                           <-- Existing Co-Equal Engineering Module
+│   └── FloorPlanService.Api/
+│
+└── ProjectExplorerService/                     <-- Refactored Co-Equal Workspace Module
+    ├── ProjectExplorerService.Domain/
+    │   ├── Aggregates/
+    │   │   └── ProjectAggregate/
+    │   │       ├── Project.cs
+    │   │       ├── Building.cs
+    │   │       ├── Floor.cs
+    │   │       └── ProjectDocument.cs
+    │   ├── ValueObjects/
+    │   │   ├── ProjectNumber.cs
+    │   │   └── DocumentType.cs
+    │   ├── Exceptions/
+    │   │   └── DomainException.cs
+    │   └── RepositoryContracts/
+    │       └── IProjectRepository.cs
+    │
+    ├── ProjectExplorerService.Application/
+    │   ├── Queries/
+    │   │   ├── GetProjectExplorerTreeQuery.cs
+    │   │   └── GetNodeStatisticsQuery.cs
+    │   ├── Commands/
+    │   │   ├── CreateProjectCommand.cs
+    │   │   └── DeleteProjectCommand.cs
+    │   └── Dtos/
+    │       └── EngineeringStatisticsDto.cs
+    │
+    └── ProjectExplorerService.Api/
+        ├── Contracts/
+        │   └── ProjectExplorerContracts.cs
+        ├── Controllers/
+        │   └── ProjectExplorerController.cs
+        └── Infrastructure/
+            ├── ProjectExplorerDbContext.cs
+            └── Repositories/
+                └── ProjectRepository.cs

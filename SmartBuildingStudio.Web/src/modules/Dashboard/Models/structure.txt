@@ -1,0 +1,11 @@
+﻿Models/
+├── Base/                     <- Directory layer reserved for future generic drawable layout parameters.
+├── Activity.ts               <- Domains model wrapper for operator event telemetry items.
+├── Dashboard.ts              <- Aggregate root entity encapsulating entire studio telemetry sets.
+├── DashboardWidget.ts        <- Controls widget layout rendering structures and placement indexing.
+├── Notification.ts           <- Models high-priority loop warning parameters and licensing criteria.
+├── RecentDocument.ts         <- Summarizes design sheets and checks module owner classifications.
+├── RecentProject.ts          <- Tracks ongoing project structures and evaluates total node costs.
+├── SystemStatus.ts           <- Evaluates server runtime infrastructures and cloud storage allocations.
+├── Task.ts                   <- Domain definition for manual engineering checklist tracks.
+└── structure.txt             <- Models folder configuration layout tracking manifest.

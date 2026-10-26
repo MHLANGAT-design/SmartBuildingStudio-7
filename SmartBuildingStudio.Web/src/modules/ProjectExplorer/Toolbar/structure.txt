@@ -1,0 +1,27 @@
+﻿Project Explorer Toolbar Module Registry Structure
+=============================================================================
+
+Toolbar/
+├── ProjectExplorerToolbar.tsx       <-- Top-level flex coordination grid container
+│
+├── Groups/
+│   ├── FileGroup.tsx               <-- Groups system file allocation operations
+│   ├── ProjectGroup.tsx            <-- Groups workspace schema property changes
+│   ├── ViewGroup.tsx               <-- Groups tree structure expansion overrides
+│   └── SearchGroup.tsx             <-- Isolates navigation filter query focus
+│
+└── Buttons/
+    ├── NewProjectButton.tsx        <-- Dispatches structural creation view trigger
+    ├── OpenButton.tsx              <-- Mounts the selected document context path
+    ├── RenameButton.tsx            <-- Dispatches active branch renaming trigger
+    ├── DeleteButton.tsx            <-- Orchestrates item purge validation flows
+    ├── RefreshButton.tsx           <-- Forces database state re-fetch thunks
+    ├── SearchButton.tsx            <-- Directs element browser focus constraints
+    ├── ExpandAllButton.tsx         <-- Batches project deep map arrays to expansion state
+    ├── CollapseAllButton.tsx       <-- Resets expansion state tracking arrays
+    └── SettingsButton.tsx          <-- Launches systemic context property modifications
+
+Operational Rules:
+-----------------------------------------------------------------------------
+1. Absolute Imports: All cross-boundary modules use explicitly resolved absolute rules (@/).
+2. Performance Invariant: Actions connect directly using decoupled atomic hook selectors.

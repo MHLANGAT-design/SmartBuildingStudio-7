@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="FloorPlanService.Domain/FloorPlanService.Domain.csproj" />
+  <Project Path="FloorPlanService.Application/FloorPlanService.Application.csproj" />
+  <Project Path="FloorPlanService.Infrastructure/FloorPlanService.Infrastructure.csproj" />
+  <Project Path="FloorPlanService.Api/FloorPlanService.Api.csproj" />
+</Solution>

@@ -1,0 +1,699 @@
+/* src/index.css
+ *
+ * Global styles for SmartBuildingStudio.Web.
+ * Imported once from main.tsx.
+ *
+ * Module-specific styles live in their own folders (e.g.
+ * FloorPlanDesigner/assets/styles.css). This file is only for
+ * app-wide primitives that multiple modules share.
+ */
+
+/* ── Base reset ──────────────────────────────────────────────────
+ * Browsers apply margin: 8px to <body> by default. The app root
+ * uses height: 100vh, so that margin pushes the whole layout down
+ * by 8px — the flex container then overflows past the viewport and
+ * anything anchored to `bottom` inside <main> sits flush against
+ * the screen edge (or below it). Removing the margin makes 100vh
+ * actually equal the visible viewport.
+ *
+ * Applied to html/body/#root together so a React mount at any of
+ * those levels inherits the same behaviour.
+ */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+/* ── Design tokens ─────────────────────────────────────────────────
+ * Central palette and timing constants. Change these to retheme
+ * every component that references them at once.
+ */
+:root {
+  --sbs-bg:         #0f1419;
+  --sbs-surface:    #1a1f2a;
+  --sbs-surface-2:  #232a37;
+  --sbs-border:     #2c3441;
+  --sbs-border-hi:  #3a4455;
+
+  --sbs-text:       #e2e8f0;
+  --sbs-text-dim:   #94a3b8;
+  --sbs-text-muted: #64748b;
+
+  --sbs-accent:     #38bdf8;
+  --sbs-accent-hi:  #7dd3fc;
+  --sbs-danger:     #ef4444;
+  --sbs-success:    #10b981;
+
+  --sbs-radius:     6px;
+  --sbs-radius-sm:  4px;
+  --sbs-shadow:     0 1px 2px rgba(0, 0, 0, 0.4);
+  --sbs-shadow-lg:  0 4px 12px rgba(0, 0, 0, 0.5);
+  --sbs-transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Base button ─────────────────────────────────────────────────
+ * Applies to .tb-btn (toolbar) and .dialog button (modal actions).
+ * Compact padding keeps fifteen toolbar controls manageable in a
+ * two-row layout on narrow screens.
+ */
+.tb-btn,
+.dialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  min-height: 26px;
+  padding: 3px 8px;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+
+  color: var(--sbs-text);
+  background: linear-gradient(180deg, var(--sbs-surface-2) 0%, var(--sbs-surface) 100%);
+  border: 1px solid var(--sbs-border);
+  border-radius: var(--sbs-radius-sm);
+
+  box-shadow: var(--sbs-shadow);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+
+  transition:
+    background var(--sbs-transition),
+    border-color var(--sbs-transition),
+    color var(--sbs-transition),
+    box-shadow var(--sbs-transition),
+    transform var(--sbs-transition);
+}
+
+.tb-btn:hover:not(:disabled),
+.dialog button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2a3340 0%, #1e2532 100%);
+  border-color: var(--sbs-border-hi);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.tb-btn:active:not(:disabled),
+.dialog button:active:not(:disabled) {
+  transform: translateY(1px);
+  background: var(--sbs-surface);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.tb-btn:focus-visible,
+.dialog button:focus-visible {
+  outline: none;
+  border-color: var(--sbs-accent);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.25),
+    var(--sbs-shadow);
+}
+
+.tb-btn:disabled,
+.dialog button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Primary variant ─────────────────────────────────────────────
+ * Use for the affirmative action in a group: Save, Apply, Run,
+ * Commission.
+ */
+.tb-btn.tb-primary {
+  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+  border-color: #0369a1;
+  color: #fff;
+}
+
+.tb-btn.tb-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%);
+  border-color: #0ea5e9;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.35);
+}
+
+/* ── Danger variant ──────────────────────────────────────────────
+ * Use for destructive actions: Reset, Delete, Discard.
+ */
+.tb-btn.tb-danger {
+  background: linear-gradient(180deg, #3a1a1a 0%, #2a1010 100%);
+  border-color: #5a2020;
+  color: #fca5a5;
+}
+
+.tb-btn.tb-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #4a1f1f 0%, #3a1515 100%);
+  border-color: var(--sbs-danger);
+  color: #fecaca;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* ── Success variant ─────────────────────────────────────────────
+ * Use for confirmed states: Save succeeded, validation passed.
+ */
+.tb-btn.tb-success {
+  background: linear-gradient(180deg, #064e3b 0%, #04392a 100%);
+  border-color: #065f46;
+  color: #6ee7b7;
+}
+
+.tb-btn.tb-success:hover:not(:disabled) {
+  background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
+  border-color: var(--sbs-success);
+  color: #a7f3d0;
+}
+
+/* ── Ghost variant ───────────────────────────────────────────────
+ * Use for icon-only or tertiary actions: filter toggles, view
+ * switches, overflow menus.
+ */
+.tb-btn.tb-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--sbs-text-dim);
+}
+
+.tb-btn.tb-ghost:hover:not(:disabled) {
+  background: var(--sbs-surface-2);
+  border-color: var(--sbs-border);
+  color: var(--sbs-text);
+}
+
+/* ── Icon slot ───────────────────────────────────────────────────
+ * Any SVG or .tb-icon element inside a button gets sized and
+ * color-coordinated automatically.
+ */
+.tb-btn svg,
+.tb-btn .tb-icon,
+.dialog button svg,
+.dialog button .tb-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.tb-btn:hover:not(:disabled) svg,
+.tb-btn:hover:not(:disabled) .tb-icon,
+.dialog button:hover:not(:disabled) svg,
+.dialog button:hover:not(:disabled) .tb-icon {
+  opacity: 1;
+}
+
+/* ── Toolbar layout ──────────────────────────────────────────────
+ * The DALI toolbar wraps on narrow screens. Each group stays on one
+ * line — wrapping happens between groups, not inside them. Buttons
+ * are compact so fifteen controls fit in two rows on a laptop.
+ */
+.dali-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #181e28 0%, #131820 100%);
+  border-bottom: 1px solid var(--sbs-border);
+}
+
+.tb-group {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding-right: 12px;
+  border-right: 1px solid var(--sbs-border);
+  flex-shrink: 0;
+}
+
+.tb-group:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* ── Responsive toolbar collapse ─────────────────────────────────
+ * Under 1400px: tighter padding on toolbar buttons.
+ * Under 1100px: labels hide, buttons become icon-only.
+ * This keeps the toolbar on one row on most laptops, and wraps to
+ * two rows on very narrow screens without breaking group coherence.
+ */
+@media (max-width: 1400px) {
+  .dali-toolbar .tb-btn {
+    padding: 3px 6px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dali-toolbar .tb-btn .tb-label {
+    display: none;
+  }
+  .dali-toolbar .tb-btn {
+    padding: 4px 6px;
+  }
+}
+
+/* ── Document actions panel ──────────────────────────────────────
+ * Renders the four access-mode choices as tiles in the Explorer's
+ * right-hand column, replacing the DesignAccessModal flow.
+ *
+ *   <div className="document-actions-panel">
+ *     <div className="document-actions-header">
+ *       <div className="document-actions-name">Document name</div>
+ *       <div className="document-actions-context">Building • Floor</div>
+ *     </div>
+ *     <div className="document-actions-tiles">
+ *       <button className="document-actions-tile" style="--tile-accent: #05FFC4">
+ *         <span className="document-actions-icon"><Layers /></span>
+ *         <span className="document-actions-body">
+ *           <span className="document-actions-label">Floor Plan</span>
+ *           <span className="document-actions-hint">Edit walls, doors, …</span>
+ *         </span>
+ *       </button>
+ *       …
+ *     </div>
+ *   </div>
+ */
+.document-actions-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.document-actions-empty {
+  color: var(--sbs-text-dim);
+  font-size: 13px;
+}
+
+.document-actions-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sbs-border);
+}
+
+.document-actions-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sbs-text);
+}
+
+.document-actions-context {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--sbs-text-muted);
+  letter-spacing: 0.03em;
+}
+
+.document-actions-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.document-actions-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+
+  background: linear-gradient(180deg, var(--sbs-surface-2) 0%, var(--sbs-surface) 100%);
+  border: 1px solid var(--sbs-border);
+  border-left: 3px solid var(--tile-accent, var(--sbs-border-hi));
+  border-radius: var(--sbs-radius-sm);
+
+  color: var(--sbs-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  transition: background var(--sbs-transition), border-color var(--sbs-transition), transform var(--sbs-transition);
+}
+
+.document-actions-tile:hover {
+  background: linear-gradient(180deg, #2a3340 0%, #1e2532 100%);
+  border-color: var(--sbs-border-hi);
+  transform: translateX(2px);
+}
+
+.document-actions-tile:active {
+  transform: translateX(1px) translateY(1px);
+}
+
+.document-actions-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--sbs-border);
+  border-radius: var(--sbs-radius-sm);
+
+  color: var(--tile-accent, var(--sbs-accent));
+}
+
+.document-actions-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.document-actions-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sbs-text);
+}
+
+.document-actions-hint {
+  font-size: 10px;
+  color: var(--sbs-text-dim);
+  line-height: 1.4;
+}
+
+/* ── Dialog primitives ─────────────────────────────────────────────
+ * Shared by every DALI Designer dialog and by any other module that
+ * uses the .dialog-backdrop / .dialog convention.
+ *
+ *   <div className="dialog-backdrop" onClick={onClose}>
+ *     <div className="dialog" onClick={(e) => e.stopPropagation()}>
+ *       <h3>…</h3>
+ *       <input … />
+ *       <div className="dialog-actions">…</div>
+ *     </div>
+ *   </div>
+ */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: dialog-fade-in 150ms ease-out;
+}
+
+.dialog {
+  min-width: 360px;
+  max-width: 520px;
+  padding: 24px;
+
+  background: linear-gradient(180deg, #1c2230 0%, #161b26 100%);
+  color: var(--sbs-text);
+  border: 1px solid var(--sbs-border);
+  border-radius: 10px;
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: dialog-scale-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dialog h3 {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.dialog p {
+  margin: 0;
+  color: var(--sbs-text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dialog input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+
+  background: var(--sbs-bg);
+  color: var(--sbs-text);
+  border: 1px solid var(--sbs-border);
+  border-radius: var(--sbs-radius-sm);
+  outline: none;
+
+  transition: border-color var(--sbs-transition), box-shadow var(--sbs-transition);
+}
+
+.dialog input:focus {
+  border-color: var(--sbs-accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* Cancel-style buttons: the last child of .dialog-actions becomes a
+ * ghost button so the affirmative action stands out. */
+.dialog-actions button:last-child {
+  background: transparent;
+  border-color: transparent;
+  color: var(--sbs-text-dim);
+  box-shadow: none;
+}
+
+.dialog-actions button:last-child:hover:not(:disabled) {
+  background: var(--sbs-surface-2);
+  border-color: var(--sbs-border);
+  color: var(--sbs-text);
+}
+
+/* ── Animations ──────────────────────────────────────────────────*/
+@keyframes dialog-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dialog-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── DALI sidebar and inspector ───────────────────────────────────
+ * Applies the app's text palette to the two side panels. Without
+ * this, buttons and unstyled elements fall back to the user-agent's
+ * default `buttontext` (renders black on Windows browsers) and the
+ * text is unreadable against the dark surfaces.
+ *
+ * The panels set their own background inline (#1e1e1e / #1a1f2a), so
+ * this block only needs to establish a color cascade and the shared
+ * typographic rhythm.
+ */
+.dali-sidebar,
+.dali-inspector {
+  color: var(--sbs-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Headings inside either panel. */
+.dali-sidebar h4,
+.dali-inspector h3 {
+  margin: 12px 0 6px 0;
+  padding-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sbs-text);
+  border-bottom: 1px solid var(--sbs-border);
+}
+
+.dali-sidebar h4 small,
+.dali-inspector h3 small {
+  color: var(--sbs-text-muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Sections inside the sidebar stack with a small gap. */
+.dali-sidebar .sidebar-section {
+  margin-bottom: 14px;
+}
+
+.dali-sidebar .sidebar-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Subheadings used by DeviceTree (line names, "Unassigned"). */
+.dali-sidebar .tree-line {
+  margin: 8px 0 2px 0;
+  padding: 2px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sbs-text-dim);
+}
+
+.dali-sidebar .tree-line small {
+  color: var(--sbs-text-muted);
+  font-weight: 400;
+}
+
+/* Compact lists. */
+.dali-sidebar ul {
+  list-style: none;
+  padding-left: 6px;
+  margin: 2px 0 6px 0;
+}
+
+.dali-sidebar li {
+  padding: 0;
+  margin: 0;
+}
+
+/* ── The .link button used across both panels ─────────────────────
+ * Was previously unstyled, so browsers rendered it as a native button
+ * with black text on Windows. These rules make it a flat, full-width
+ * clickable row that inherits the panel palette.
+ */
+.link {
+  display: block;
+  width: 100%;
+  padding: 3px 6px;
+  margin: 1px 0;
+
+  background: transparent;
+  border: none;
+  border-radius: var(--sbs-radius-sm);
+
+  color: var(--sbs-text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+
+  cursor: pointer;
+  transition: background var(--sbs-transition), color var(--sbs-transition);
+}
+
+.link:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sbs-text);
+}
+
+.link:focus-visible {
+  outline: none;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--sbs-text);
+  box-shadow: 0 0 0 1px var(--sbs-accent);
+}
+
+/* ── Inspector key/value rows ─────────────────────────────────────
+ * The .kv blocks used by DeviceInspector, SceneInspector, and the
+ * group membership count.
+ */
+.dali-inspector .kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--sbs-text-dim);
+}
+
+.dali-inspector .kv span {
+  color: var(--sbs-text-muted);
+}
+
+.dali-inspector .kv b {
+  color: var(--sbs-text);
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dali-inspector .kv.kv-small {
+  font-size: 10px;
+}
+
+.dali-inspector .kv.kv-small code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--sbs-text-dim);
+}
+
+/* Horizontal rules inside the inspector. */
+.dali-inspector hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--sbs-border);
+}
+
+/* Fieldsets used by BallastInspector / SensorInspector / LineInspector. */
+.dali-inspector fieldset {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--sbs-border);
+  border-radius: var(--sbs-radius-sm);
+}
+
+.dali-inspector legend {
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sbs-text-muted);
+}
+
+/* The member list in the GroupInspector. */
+.dali-inspector ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 8px 0 0 0;
+}
+
+.dali-inspector li {
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--sbs-text-dim);
+  border-radius: var(--sbs-radius-sm);
+}
+
+.dali-inspector li:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--sbs-text);
+}
+
+/* ── Em / "empty state" text ──────────────────────────────────────
+ * Used for "No groups", "No devices yet", "No devices loaded".
+ */
+.dali-sidebar em,
+.dali-inspector em {
+  display: block;
+  padding: 4px 6px;
+  color: var(--sbs-text-muted);
+  font-size: 11px;
+  font-style: normal;
+  opacity: 0.8;
+}

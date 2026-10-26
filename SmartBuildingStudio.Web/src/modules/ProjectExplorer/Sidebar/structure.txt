@@ -1,0 +1,29 @@
+﻿
+FilePath                      
+--------                      
+Sidebar\ExplorerFilters.tsx   
+Sidebar\ExplorerSearch.tsx    
+Sidebar\ExplorerStatistics.tsx
+Sidebar\ProjectTree.tsx       
+Sidebar\ProjectTreeItem.tsx   
+Sidebar\structure.txt         
+
+Project Explorer Sidebar Registry Submodule Topology
+=============================================================================
+
+[Left Sidebar Operational Container Panel]
+  │
+  ├── ExplorerSearch.tsx        <-- Evaluates input metrics to scope layout nodes
+  ├── ExplorerFilters.tsx       <-- Toggles filter states by document types or status
+  ├── ExplorerStatistics.tsx    <-- Displays operational totals and error metrics
+  │
+  └── ProjectTree.tsx           <-- Orchestrates node configurations dynamically
+        └── ProjectTreeItem.tsx <-- Recursive node renderer with context controls
+
+State Synchronization Rules:
+-----------------------------------------------------------------------------
+1. Imports must resolve strictly via absolute paths (@/).
+2. Text input manipulations dispatch query mutations straight to the Redux store.
+3. Renders optimize via useAppSelector targets to capture individual mutation signals.
+
+

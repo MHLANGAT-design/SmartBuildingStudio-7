@@ -1,0 +1,6 @@
+﻿Services/
+├── DashboardApi.ts           <- Communication layer mapping the live REST HTTP telemetry queries.
+├── ActivityService.ts        <- Business engine mapping, compiling, and calculating audit logging streams.
+├── NotificationService.ts    <- Orchestrates high-priority systemic alerts and warning segregations.
+├── WidgetService.ts          <- Handles workspace card retention profiles and vertical grid layouts.
+└── structure.txt             <- Services directory architecture tracking manifest definition.

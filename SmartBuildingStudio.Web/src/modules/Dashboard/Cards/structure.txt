@@ -1,0 +1,10 @@
+﻿Cards/
+├── ProjectCard.tsx       <- Grid tile component formatting raw portfolio telemetry indices.
+├── DocumentCard.tsx      <- Row element displaying drawings and module owner flags.
+├── ActivityCard.tsx      <- Contextual card showing operation logs and operator steps.
+├── NotificationCard.tsx  <- Handles rendering severe background errors or system warnings.
+├── TaskCard.tsx          <- Checkbox card formatting assignment tracker criteria rows.
+└── structure.txt         <- Cards directory configuration layout manifest.
+     
+
+

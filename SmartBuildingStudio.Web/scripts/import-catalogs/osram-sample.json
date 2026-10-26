@@ -1,0 +1,21 @@
+[
+  {
+    "productId": "929002089606",
+    "productName": "Philips Xitanium 75W 0.2-1.0A",
+    "family": "Xitanium",
+    "daliVersion": "DALI-2",
+    "technicalData": {
+      "outputPowerW": 75,
+      "outputCurrentMinA": 0.2,
+      "outputCurrentMaxA": 1.0,
+      "outputVoltageMaxV": 200,
+      "inputVoltageV": "220-240"
+    },
+    "certifications": ["EN 61347", "DALI-2"],
+    "features": {
+      "programmable": true,
+      "dimmingProtocol": "DALI",
+      "dimmingRange": "1-100%"
+    }
+  }
+]
