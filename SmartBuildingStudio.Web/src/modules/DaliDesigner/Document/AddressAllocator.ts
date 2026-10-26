@@ -1,79 +1,120 @@
 // src/modules/DaliDesigner/Document/AddressAllocator.ts
+//
+// DALI short addressing is PER-LINE. Each physical DALI line has its own
+// 0-63 address space, independent of every other line. Two devices on
+// different lines can both hold address 0 — that's correct behavior, not
+// a conflict.
+//
+// The allocator must therefore group by lineId before assigning:
+//
+//   • Line 1 with 5 devices → 0, 1, 2, 3, 4
+//   • Line 2 with 5 devices → 0, 1, 2, 3, 4  (independent)
+//
+// Devices with lineId === null are skipped — there's no line context to
+// allocate against, so the user has to assign them to a line first.
+//
+// If a line exhausts its 0-63 space, remaining devices on that line keep
+// null (unaddressed). Other lines are unaffected.
+
 import { DaliDevice } from "@/modules/DaliDesigner/models/DaliDevice";
 
 const MIN_ADDRESS = 0;
 const MAX_ADDRESS = 63;
 
+export interface DaliAddressConflict {
+  lineId: string;
+  address: number;
+  deviceIds: string[];
+}
+
 export const AddressAllocator = {
   /**
-   * Assign sequential DALI addresses to any device that doesn't already
-   * have one. Existing addresses are respected and never reassigned.
+   * Assign sequential addresses (per-line) to devices that don't
+   * already have one. Existing addresses are respected.
    *
-   * Never produces duplicates: the allocator seeds a "taken" set from
-   * the addresses already in use, then walks unaddressed devices and
-   * gives each the next free slot at or above `start`.
-   *
-   * If the pool is exhausted (all 0–63 used), remaining devices are
-   * left without an address.
+   * @param devices The full device list (all lines).
+   * @param start First address to try (usually 0).
+   * @returns New device list with per-line addresses assigned.
    */
   autoAddress(devices: DaliDevice[], start = MIN_ADDRESS): DaliDevice[] {
-    // 1. Collect every address already in use.
-    const taken = new Set<number>();
+    // Group by line.
+    const byLine = new Map<string, DaliDevice[]>();
     for (const d of devices) {
-      if (d.address != null) taken.add(d.address);
+      if (d.lineId == null) continue;
+      const list = byLine.get(d.lineId) ?? [];
+      list.push(d);
+      byLine.set(d.lineId, list);
     }
 
-    // 2. Walk devices; give the next free address to each unaddressed one.
-    let next = Math.max(start, MIN_ADDRESS);
+    // Assign within each line.
+    const assignments = new Map<string, number>();
+    for (const [, lineDevices] of byLine) {
+      const taken = new Set<number>();
+      for (const d of lineDevices) {
+        if (d.address != null) taken.add(d.address);
+      }
+
+      let next = Math.max(start, MIN_ADDRESS);
+      for (const d of lineDevices) {
+        if (d.address != null) continue;
+        while (taken.has(next) && next <= MAX_ADDRESS) next++;
+        if (next > MAX_ADDRESS) break;
+        assignments.set(d.id, next);
+        taken.add(next);
+        next++;
+      }
+    }
+
+    // Apply assignments to the original device list.
     return devices.map((d) => {
-      if (d.address != null) return d;
-
-      // Advance past addresses that are already taken.
-      while (taken.has(next) && next <= MAX_ADDRESS) next++;
-      if (next > MAX_ADDRESS) return d; // out of address space
-
-      const assigned = next;
-      taken.add(assigned);
-      next++;
-      return { ...d, address: assigned };
+      const newAddress = assignments.get(d.id);
+      if (newAddress === undefined) return d;
+      return { ...d, address: newAddress };
     });
   },
 
   /**
-   * Wipe all addresses and renumber from `start`.
+   * Wipe all addresses (per-line) and renumber from `start`.
    *
-   * Use this when you want a clean, dense sequence (0..N-1) and don't
-   * care about preserving existing numbers. Devices beyond the
-   * 0–63 address space get `null`.
+   * Each line gets its own 0..N-1 sequence. Devices beyond the 0-63
+   * space on any given line get null.
+   *
+   * Devices without a lineId are left untouched (can't reassign
+   * without line context).
    */
   reassignAll(devices: DaliDevice[], start = MIN_ADDRESS): DaliDevice[] {
-    let next = Math.max(start, MIN_ADDRESS);
+    const counters = new Map<string, number>();
     return devices.map((d) => {
+      if (d.lineId == null) return d;
+      const next = Math.max(counters.get(d.lineId) ?? start, MIN_ADDRESS);
       if (next > MAX_ADDRESS) return { ...d, address: null };
-      return { ...d, address: next++ };
+      counters.set(d.lineId, next + 1);
+      return { ...d, address: next };
     });
   },
 
   /**
-   * Return any addresses that are used by more than one device.
-   *
-   * A well-formed DALI network should have an empty result from this.
-   * Any entries returned indicate a conflict that ValidationService
-   * surfaces as an error-level issue.
+   * Return any per-line address conflicts. An address held by two or
+   * more devices **on the same line** is a conflict. The same address
+   * on different lines is not.
    */
-  findConflicts(
-    devices: DaliDevice[]
-  ): Array<{ address: number; deviceIds: string[] }> {
-    const map = new Map<number, string[]>();
+  findConflicts(devices: DaliDevice[]): DaliAddressConflict[] {
+    const map = new Map<string, string[]>();
     for (const d of devices) {
-      if (d.address == null) continue;
-      const arr = map.get(d.address) ?? [];
+      if (d.address == null || d.lineId == null) continue;
+      const key = `${d.lineId}|${d.address}`;
+      const arr = map.get(key) ?? [];
       arr.push(d.id);
-      map.set(d.address, arr);
+      map.set(key, arr);
     }
     return Array.from(map.entries())
       .filter(([, ids]) => ids.length > 1)
-      .map(([address, deviceIds]) => ({ address, deviceIds }));
+      .map(([key, deviceIds]) => {
+        const sep = key.indexOf("|");
+        const lineId = key.substring(0, sep);
+        const address = Number(key.substring(sep + 1));
+        return { lineId, address, deviceIds };
+      });
   },
 };
 
