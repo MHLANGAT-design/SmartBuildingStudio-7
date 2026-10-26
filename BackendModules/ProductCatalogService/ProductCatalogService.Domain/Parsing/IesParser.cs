@@ -3,7 +3,7 @@ using ProductCatalogService.Domain.Enums;
 using ProductCatalogService.Domain.Exceptions;
 using ProductCatalogService.Domain.ValueObjects;
 
-namespace ProductCatalogService.Infrastructure.Parsing;
+namespace ProductCatalogService.Domain.Parsing;
 
 /// <summary>
 /// Parses IES LM-63 (1986 / 1991 / 1995 / 2002) photometric files.
@@ -30,6 +30,12 @@ namespace ProductCatalogService.Infrastructure.Parsing;
 /// TILT is accepted but not applied (TILT=NONE is the only variant
 /// that matters for catalog data; files with tilt are rare and would
 /// need an additional transformation).
+///
+/// BOM HANDLING:
+///   Some Windows tools (PowerShell's `-Encoding UTF8`, Notepad, some
+///   manufacturer exports) prepend a UTF-8 byte-order mark (\uFEFF)
+///   to the file. The parser strips it before validation so files with
+///   or without a BOM both parse cleanly.
 /// </summary>
 public static class IesParser
 {
@@ -49,7 +55,13 @@ public static class IesParser
         if (string.IsNullOrWhiteSpace(iesText))
             throw new IesParseException("File is empty.");
 
-        var lines = iesText
+        // Strip UTF-8 BOM if present. Both PowerShell `-Encoding UTF8`
+        // (Windows PowerShell 5.1) and some manufacturer export tools
+        // prepend one. Without this, the header check fails with
+        // "Missing IES header. First line: \uFEFFIESNA..."
+        var cleanedText = iesText.TrimStart('\uFEFF');
+
+        var lines = cleanedText
             .Replace("\r\n", "\n")
             .Replace('\r', '\n')
             .Split('\n')

@@ -42,4 +42,14 @@ public sealed class ProductRepository : IProductRepository
         _db.Products.Remove(entity);
         await _db.SaveChangesAsync();
     }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task TrackAsNewAsync(PhotometricFile file, CancellationToken cancellationToken = default)
+    {
+        await _db.Set<PhotometricFile>().AddAsync(file, cancellationToken);
+    }
 }

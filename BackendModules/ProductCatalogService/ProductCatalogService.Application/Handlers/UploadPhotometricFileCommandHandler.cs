@@ -5,8 +5,8 @@ using ProductCatalogService.Application.Commands.PhotometricFiles;
 using ProductCatalogService.Domain.Entities;
 using ProductCatalogService.Domain.Enums;
 using ProductCatalogService.Domain.Exceptions;
+using ProductCatalogService.Domain.Parsing;
 using ProductCatalogService.Domain.Repositories;
-using ProductCatalogService.Infrastructure.Parsing;
 
 namespace ProductCatalogService.Application.Handlers;
 
@@ -92,11 +92,29 @@ public sealed class UploadPhotometricFileCommandHandler
         newFile.Activate();
 
         // 7. Attach to the product aggregate and persist.
+        //
+        //    Order matters here:
+        //
+        //    a) product.AddPhotometricFile(newFile)  — adds the entity to
+        //       the tracked aggregate's navigation collection. Does NOT
+        //       change EF's state for the new entity — it's still
+        //       "detected" only on the next DetectChanges.
+        //
+        //    b) _products.TrackAsNewAsync(newFile)   — explicitly marks the
+        //       entity Added in the change tracker, overriding EF's
+        //       key-based heuristic. Without this, EF sees Id != Guid.Empty
+        //       (from Entity's constructor: Id = Guid.NewGuid()) and
+        //       wrongly assumes the entity is Modified, emitting UPDATE
+        //       photometric_files WHERE Id=... which matches 0 rows
+        //       because the row doesn't exist yet → DbUpdateConcurrencyException.
+        //
+        //    c) _products.SaveChangesAsync()         — now emits a single
+        //       INSERT into photometric_files. No UPDATE on the product row,
+        //       no UPDATE on the new file, no spurious version check.
         product.AddPhotometricFile(newFile);
-        await _products.UpdateAsync(product);
+        await _products.TrackAsNewAsync(newFile, cancellationToken);
+        await _products.SaveChangesAsync(cancellationToken);
 
-        // 8. Return the summary. The new file's Id is populated by EF
-        //    after SaveChangesAsync (ProductRepository.UpdateAsync calls it).
         return new UploadPhotometricFileResult(
             ProductId: request.ProductId,
             PhotometricFileId: newFile.Id,
