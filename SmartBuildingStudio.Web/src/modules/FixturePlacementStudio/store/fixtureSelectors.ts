@@ -257,3 +257,29 @@ export const selectPhotometricService = (_state: RootState): PhotometricService 
 export function getPhotometricService(): PhotometricService {
   return photometricServiceSingleton;
 }
+
+/**
+ * Access the current photometric resolver. Used by callers that need to
+ * invoke resolver-level operations — specifically `clearCache()` after
+ * a photometric file upload so subsequent calculations refetch.
+ *
+ * The resolver is a stable module-scope instance, swapped only via
+ * setPhotometricResolver. Calling getPhotometricResolver() gives the
+ * live object; mutating it (clearCache) takes effect immediately for
+ * any code holding the same reference.
+ */
+export function getPhotometricResolver(): PhotometricDistributionResolver {
+  return photometricResolver;
+}
+
+/**
+ * Convenience wrapper — clears the resolver cache if the active
+ * resolver supports it. Safe to call unconditionally; the stub resolver
+ * (which has no cache) is a no-op.
+ *
+ * Call after uploading a photometric file so the next Calculate Lux
+ * fetches the new distribution instead of the stale cached null.
+ */
+export function resetPhotometricResolverCache(): void {
+  photometricResolver.clearCache?.();
+}

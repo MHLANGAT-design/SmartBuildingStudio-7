@@ -1,17 +1,19 @@
 // src/modules/Admin/ProductCatalog/ProductCatalogActions.tsx
 //
-// Three buttons that open the three import dialogs.
+// Four buttons that open the four import dialogs.
 //
-//   📥 Import from File  → ImportFromFileDialog  (Phase B — live)
-//   ✏ Add Manually       → ManualProductDialog   (Phase C — live)
-//   ♻ Update Catalog     → StubDialog             (Phase D — pending)
+//   📥 Import from File  → ImportFromFileDialog    (Phase B — live)
+//   ✏ Add Manually       → ManualProductDialog     (Phase C — live)
+//   📐 Upload IES        → UploadPhotometricDialog (Phase 2b — live)
+//   ♻ Update Catalog     → StubDialog               (Phase D — pending)
 
 import React, { useState } from "react";
 import { StubDialog } from "./dialogs/StubDialog";
 import { ImportFromFileDialog } from "./dialogs/ImportFromFileDialog";
 import { ManualProductDialog } from "./dialogs/ManualProductDialog";
+import { UploadPhotometricDialog } from "./dialogs/UploadPhotometricDialog";
 
-type DialogKind = "file" | "manual" | "update" | null;
+type DialogKind = "file" | "manual" | "ies" | "update" | null;
 
 export interface ProductCatalogActionsProps {
   onCatalogChanged?: () => void;
@@ -44,6 +46,14 @@ export const ProductCatalogActions: React.FC<ProductCatalogActionsProps> = ({
         </button>
         <button
           type="button"
+          onClick={() => setDialog("ies")}
+          style={buttonStyle("#05FFC4")}
+          title="Upload an IES photometric file for a product"
+        >
+          📐 Upload IES
+        </button>
+        <button
+          type="button"
           onClick={() => setDialog("update")}
           style={buttonStyle("#FFB800")}
           title="Update the catalog for a chosen manufacturer"
@@ -62,6 +72,12 @@ export const ProductCatalogActions: React.FC<ProductCatalogActionsProps> = ({
         open={dialog === "manual"}
         onClose={close}
         onSaved={() => onCatalogChanged?.()}
+      />
+
+      <UploadPhotometricDialog
+        open={dialog === "ies"}
+        onClose={close}
+        onUploaded={() => onCatalogChanged?.()}
       />
 
       <StubDialog

@@ -27,9 +27,20 @@ import { emptyPhotometricData, failedPhotometricData } from '@/modules/FixturePl
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type PhotometricDistributionResolver = (
+/**
+ * Function type for resolving a photometric distribution by product id.
+ *
+ * Additionally carries an optional clearCache() method. Resolvers that
+ * cache per-product lookups (like the product-catalog-backed resolver)
+ * expose clearCache so callers can invalidate after a file upload. The
+ * stub resolver doesn't need it — optional means existing implementations
+ * compile unchanged.
+ */
+export type PhotometricDistributionResolver = ((
   productId: string
-) => Promise<PhotometricDistribution | null>;
+) => Promise<PhotometricDistribution | null>) & {
+  clearCache?: () => void;
+};
 
 /**
  * A wall segment in world coordinates (mm). Doors and windows are

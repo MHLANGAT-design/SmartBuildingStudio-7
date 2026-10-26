@@ -9,6 +9,8 @@
 //   3. Deduplicate concurrent in-flight requests.
 //   4. Degrade gracefully — a failed lookup is cached as null so
 //      subsequent fixtures of the same product skip the HTTP call.
+//   5. Expose clearCache() so callers can invalidate after an IES file
+//      is uploaded (the previous cached null would otherwise persist).
 //
 // This is the resolver that gets passed to setPhotometricResolver().
 
@@ -45,6 +47,12 @@ export interface ProductCatalogResolverOptions {
  * Stateful — the returned resolver caches per productId. Construct one
  * per calculation session, not once per app lifetime, unless you intend
  * long-lived caching across sessions.
+ *
+ * Exposes clearCache(): drops all cached distributions and in-flight
+ * requests so the next call fetches fresh data from the backend. Call
+ * this after uploading an IES file for a product — the resolver had
+ * cached null (404) for that product previously, and clearCache makes
+ * the next calculation see the newly-uploaded data.
  */
 export function createProductCatalogPhotometricResolver(
   options: ProductCatalogResolverOptions = {}
@@ -63,7 +71,7 @@ export function createProductCatalogPhotometricResolver(
       console.warn(msg, detail);
     });
 
-  return async function resolve(
+  const resolve = async function resolve(
     productId: string
   ): Promise<PhotometricDistribution | null> {
     // 1. Cache hit (including null hits).
@@ -95,7 +103,14 @@ export function createProductCatalogPhotometricResolver(
 
     inFlight.set(productId, promise);
     return promise;
+  } as PhotometricDistributionResolver;
+
+  resolve.clearCache = () => {
+    cache.clear();
+    inFlight.clear();
   };
+
+  return resolve;
 }
 
 // ─── Internals ────────────────────────────────────────────────────────────────
