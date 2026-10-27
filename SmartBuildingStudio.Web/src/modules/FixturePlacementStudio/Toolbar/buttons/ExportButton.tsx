@@ -1,8 +1,4 @@
 // src/modules/FixturePlacementStudio/Toolbar/buttons/ExportButton.tsx
-//
-// Exports the current layout in the selected format. Format selection
-// is a small dropdown next to the button; the choice persists across
-// renders in the session (local state).
 
 import React, { useState } from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
@@ -18,6 +14,7 @@ const FORMATS: { value: ExportFormat; label: string }[] = [
   { value: 'csv', label: 'CSV' },
   { value: 'pdf', label: 'PDF' },
   { value: 'dxf', label: 'DXF' },
+  { value: 'svg', label: 'SVG' },
 ];
 
 export const ExportButton: React.FC = () => {
@@ -31,12 +28,17 @@ export const ExportButton: React.FC = () => {
     if (!layout || busy) return;
     setBusy(true);
     try {
-      const result = await ExportService.export(format, layout, {
+      let drawingDocument: any = undefined;
+      if (typeof window !== 'undefined' && layout.documentId) {
+        const session = (window as any).__fixtureSessionRegistry?.get?.(layout.documentId);
+        drawingDocument = session?.fixtureDocument?.getDrawingDocument?.();
+      }
+
+      const result = await ExportService.export(format, layout, drawingDocument, {
         includeZones: true,
       });
       downloadExport(result);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('[ExportButton] Export failed:', err);
     } finally {
       setBusy(false);

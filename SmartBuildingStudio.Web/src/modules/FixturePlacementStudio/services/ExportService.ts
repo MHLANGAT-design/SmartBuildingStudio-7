@@ -1,27 +1,12 @@
 // src/modules/FixturePlacementStudio/services/ExportService.ts
-//
-// Export a FixtureLayout to external formats.
-//
-// Formats implemented in v1.0:
-//   - JSON:  full layout, round-trippable
-//   - CSV:   fixture list, one row per fixture
-//   - PDF:   validation report (via browser print; heavy lifting deferred)
-//   - DXF:   fixture symbols as POINT entities on a FI-PLACEMENT layer
-//
-// Formats stubbed for later:
-//   - IFC
-//   - Revit (RVT)
-//   - Excel (XLSX)
-//
-// Each exporter is a pure function taking (layout, options) and
-// returning a Blob or string. The caller triggers the download.
 
 import type { FixtureLayout } from '@/modules/FixturePlacementStudio/models/FixtureLayout';
 import type { ValidationReport } from '@/modules/FixturePlacementStudio/services/ValidationService';
 import { serializeFixture } from '@/modules/FixturePlacementStudio/models/Fixture';
 import { serializeZone } from '@/modules/FixturePlacementStudio/models/Zone';
+import type { DrawingDocument } from '@/modules/FloorPlanDesigner/Document/DrawingDocument';
 
-export type ExportFormat = 'json' | 'csv' | 'pdf' | 'dxf' | 'ifc' | 'rvt' | 'xlsx';
+export type ExportFormat = 'json' | 'csv' | 'pdf' | 'dxf' | 'svg' | 'ifc' | 'rvt' | 'xlsx';
 
 export interface ExportOptions {
   /** Optional validation report to include. Required for PDF. */
@@ -40,12 +25,83 @@ export interface ExportResult {
   content: Blob | string;
 }
 
+interface Point { x: number; y: number; }
+
+interface Primitive {
+  kind?: string;
+  points?: Point[];
+  center?: Point;
+  radius?: number;
+  startAngle?: number;
+  endAngle?: number;
+}
+
+// ─── SVG Helpers ─────────────────────────────────────────────────────────────
+
+function escapeXml(s: string): string {
+  return String(s).replace(/[<>&"']/g, (c) => {
+    if (c === "<") return "&lt;";
+    if (c === ">") return "&gt;";
+    if (c === "&") return "&amp;";
+    if (c === '"') return "&quot;";
+    return "&apos;";
+  });
+}
+
+function getBounds(el: any): Point[] {
+  const pts: Point[] = [];
+  const addPt = (p: any) => {
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+      pts.push({ x: p.x, y: p.y });
+    }
+  };
+
+  if (Array.isArray(el.points)) for (const p of el.points) addPt(p);
+  if (Array.isArray(el.vertices)) for (const p of el.vertices) addPt(p);
+  if (el.start) addPt(el.start);
+  if (el.end) addPt(el.end);
+  if (Array.isArray(el.primitives)) {
+    for (const prim of el.primitives) {
+      if (Array.isArray(prim.points)) for (const p of prim.points) addPt(p);
+      if (prim.center) addPt(prim.center);
+    }
+  }
+  return pts;
+}
+
+function classifyElement(el: any): "room" | "wall" | "door" | "window" | "raw" | "fixture" | "other" {
+  if (!el) return "other";
+  
+  const type = String(el.type || "").toLowerCase();
+  const layer = String(el.layer || el.originalLayer || "").toLowerCase();
+
+  if (type === "rawgeometry" || layer === "rawgeometry" || layer === "raw") return "raw";
+  if (type === "room" || type === "rooms" || el.isRoom === true) return "room";
+  if (type.includes("door") || layer.includes("door") || layer === "dr") return "door";
+  if (type.includes("window") || layer.includes("window") || layer.includes("glaz") || layer === "wd") return "window";
+  
+  const normalizedType = type.replace(/[_\s-]/g, "");
+  if (
+    type === "wall" || 
+    type === "walls" || 
+    normalizedType === "polyline" || 
+    layer.includes("wall") || 
+    el.thickness !== undefined
+  ) {
+    return "wall";
+  }
+
+  if (type === "fixture" || normalizedType === "luminaire" || el.isFixture === true) return "fixture";
+  return "other";
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class ExportService {
   static async export(
     format: ExportFormat,
     layout: FixtureLayout,
+    drawingDocument?: DrawingDocument,
     options?: ExportOptions
   ): Promise<ExportResult> {
     switch (format) {
@@ -57,6 +113,8 @@ export class ExportService {
         return ExportService.toPdf(layout, options);
       case 'dxf':
         return ExportService.toDxf(layout, options);
+      case 'svg':
+        return ExportService.toSvg(layout, drawingDocument, options);
       case 'ifc':
         throw new Error('IFC export is not implemented in v1.0.');
       case 'rvt':
@@ -104,7 +162,6 @@ export class ExportService {
     ];
     const rows: string[] = [header.join(',')];
 
-    // Build fixture → zone index.
     const zoneMembership = new Map<string, string[]>();
     for (const zone of layout.zones) {
       for (const fid of zone.memberFixtureIds) {
@@ -149,12 +206,6 @@ export class ExportService {
     layout: FixtureLayout,
     options?: ExportOptions
   ): ExportResult {
-    // v1.0 PDF: a self-contained HTML document with print-friendly CSS.
-    // The caller opens it in a new tab and invokes window.print(). This
-    // avoids pulling in a heavy PDF library for what is essentially a
-    // formatted report. When richer PDF is needed, replace the body of
-    // this method with a jsPDF or pdfmake implementation — the interface
-    // (ExportResult) does not change.
     const report = options?.validationReport;
 
     const html = `<!DOCTYPE html>
@@ -230,7 +281,7 @@ ${layout.fixtures.map(f => `
 
     return {
       format: 'pdf',
-      mimeType: 'text/html', // printed to PDF by the browser
+      mimeType: 'text/html',
       fileName: `fixture-layout-${layout.documentId}.html`,
       content: html,
     };
@@ -250,55 +301,38 @@ ${layout.fixtures.map(f => `
     layout: FixtureLayout,
     options?: ExportOptions
   ): ExportResult {
-    // v1.0 DXF: minimal valid DXF with POINT entities for each fixture
-    // and a textual annotation (productId) for each. Suitable for
-    // importing into CAD as a reference layer. Not a full CAD export —
-    // no blocks, no dynamic symbols. Those come in a follow-up.
     const lines: string[] = [];
 
-    // ⚠️ DXF group codes are numbers (0 = entity type, 8 = layer,
-    // 10/20/30 = coordinates, etc.). The value that follows them is
-    // the actual data — which can be a number or a string. Accept
-    // both and coerce them to strings when pushing to the output.
     const push = (code: string | number, value: string | number): void => {
       lines.push(String(code));
       lines.push(String(value));
     };
 
-    // Header
     push(0, 'SECTION');
     push(2, 'HEADER');
     push(0, 'ENDSEC');
 
-    // Entities
     push(0, 'SECTION');
     push(2, 'ENTITIES');
 
     for (const fixture of layout.fixtures) {
-      // POINT entity at fixture location.
       push(0, 'POINT');
       push(8, 'FI-PLACEMENT');
       push(10, fixture.x);
       push(20, fixture.y);
       push(30, 0);
 
-      // Text annotation with productId just above the point.
       push(0, 'TEXT');
       push(8, 'FI-PLACEMENT-ANNOT');
       push(10, fixture.x + 0.2);
       push(20, fixture.y + 0.2);
       push(30, 0);
-      push(40, 0.3); // height
+      push(40, 0.3);
       push(1, fixture.kind.toUpperCase());
-
-      // Full metadata as extended entity data (XDATA) would go here in a
-      // future version. Kept minimal for v1.0.
     }
 
     if (options?.includeZones) {
-      // Zone boundaries are derived, not authored, so we do not emit
-      // polygons. A future version could compute zone convex hulls and
-      // emit them as LWPOLYLINE on a FI-ZONE layer.
+      // Zone boundaries are derived, not authored.
     }
 
     push(0, 'ENDSEC');
@@ -309,6 +343,232 @@ ${layout.fixtures.map(f => `
       mimeType: 'application/dxf',
       fileName: `fixture-layout-${layout.documentId}.dxf`,
       content: lines.join('\n'),
+    };
+  }
+
+  // ─── SVG ─────────────────────────────────────────────────────────────
+
+  private static toSvg(
+    layout: FixtureLayout,
+    drawingDocument?: DrawingDocument,
+    options?: ExportOptions
+  ): ExportResult {
+    const elements = drawingDocument ? drawingDocument.getElements() : [];
+    const validElements: Array<{ el: any; kind: string }> = [];
+
+    // ── 1. Compute bounds ───────────────────────────────────────────
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const includePt = (p: Point) => {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    };
+
+    for (const el of elements) {
+      const kind = classifyElement(el);
+      if (kind === "other") continue;
+
+      const pts = getBounds(el);
+      if (kind === "room" && pts.length < 3) continue;
+      if (kind !== "room" && pts.length < 2 && kind !== "fixture") continue;
+
+      for (const p of pts) includePt(p);
+      validElements.push({ el, kind });
+    }
+
+    // Ensure fixtures are included in bounds
+    for (const f of layout.fixtures) {
+      includePt({ x: f.x, y: f.y });
+    }
+
+    const hasAnyGeometry = Number.isFinite(minX);
+    if (!hasAnyGeometry) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
+
+    const pad = hasAnyGeometry ? Math.max(400, (maxX - minX) * 0.03) : 20;
+    minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+    const width  = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+
+    // ── 2. Output pixel dimensions ──────────────────────────────────
+    const aspect = width / height;
+    const TARGET_LONG_EDGE = 1800;
+    const outW = aspect >= 1 ? TARGET_LONG_EDGE : Math.round(TARGET_LONG_EDGE * aspect);
+    const outH = aspect >= 1 ? Math.round(TARGET_LONG_EDGE / aspect) : TARGET_LONG_EDGE;
+
+    const worldPerPx = width / outW;
+    const px = (n: number) => n * worldPerPx;
+
+    // Direct Y projection without SVG transforms
+    const projectY = (y: number) => maxY - y;
+    const projX = (x: number) => x - minX;
+
+    const out: string[] = [];
+    out.push('<?xml version="1.0" encoding="UTF-8"?>');
+    out.push(
+      `<svg xmlns="http://www.w3.org/2000/svg" ` +
+      `viewBox="0 0 ${width} ${height}" ` +
+      `width="${outW}" height="${outH}" ` +
+      `preserveAspectRatio="xMidYMid meet">`
+    );
+    out.push(`  <rect width="${width}" height="${height}" fill="#0A0A0A"/>`);
+
+    // ── 3. Floorplan ────────────────────────────────────────────────
+    
+    // 3a. Raw Geometry
+    out.push('    <g id="rawgeometry" fill="none" stroke="#94A3B8" stroke-linejoin="round" stroke-linecap="round">');
+    for (const { el, kind } of validElements) {
+      if (kind !== "raw") continue;
+      const pts = getBounds(el);
+      if (pts.length < 2) continue;
+      const d = pts.map(p => `${projX(p.x)},${projectY(p.y)}`).join(" ");
+      out.push(`      <polyline points="${d}" stroke-width="${px(0.75)}"/>`);
+    }
+    out.push('    </g>');
+
+    // 3b. Rooms
+    out.push('    <g id="rooms">');
+    for (const { el, kind } of validElements) {
+      if (kind !== "room") continue;
+      const pts = getBounds(el);
+      if (pts.length < 3) continue;
+
+      const d = pts.map(p => `${projX(p.x)},${projectY(p.y)}`).join(" ");
+      const fill = typeof el.fillStyle === "string" ? el.fillStyle : "rgba(74, 222, 128, 0.12)";
+      const stroke = typeof el.strokeStyle === "string" ? el.strokeStyle : "#4ADE80";
+      
+      out.push(`      <polygon points="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${px(1.5)}" stroke-linejoin="round"/>`);
+      
+      if (el.name) {
+        let cx = 0, cy = 0;
+        for (const p of pts) { cx += p.x; cy += p.y; }
+        cx /= pts.length;
+        cy /= pts.length;
+        out.push(
+          `      <text x="${projX(cx)}" y="${projectY(cy)}" text-anchor="middle" dominant-baseline="middle" ` +
+          `font-family="sans-serif" font-size="${px(11)}" font-weight="700" ` +
+          `fill="#4ADE80" opacity="0.9">${escapeXml(String(el.name))}</text>`
+        );
+      }
+    }
+    out.push('    </g>');
+
+    // 3c. Walls, Doors, Windows
+    out.push('    <g id="structures" fill="none" stroke-linejoin="round" stroke-linecap="round">');
+    for (const { el, kind } of validElements) {
+      if (kind === "room" || kind === "raw" || kind === "fixture") continue;
+
+      let stroke = "#9CA3AF";
+      let sw = px(2);
+
+      if (kind === "wall") {
+        stroke = "#9CA3AF";
+        sw = px(2.5);
+      } else if (kind === "door") {
+        stroke = "#EAB308";
+        sw = px(3);
+      } else if (kind === "window") {
+        stroke = "#4FC3F7";
+        sw = px(3.5);
+      }
+
+      if (Array.isArray(el.primitives) && el.primitives.length > 0) {
+        for (const prim of el.primitives as Primitive[]) {
+          if (prim.kind === "line" && prim.points && prim.points.length >= 2) {
+            const a = prim.points[0];
+            const b = prim.points[1];
+            out.push(`      <line x1="${projX(a.x)}" y1="${projectY(a.y)}" x2="${projX(b.x)}" y2="${projectY(b.y)}" stroke="${stroke}" stroke-width="${sw}"/>`);
+          } else if (prim.kind === "arc" && prim.center) {
+            const { center, radius, startAngle, endAngle } = prim;
+            if (radius && startAngle !== undefined && endAngle !== undefined) {
+              const sx = center.x + radius * Math.cos(startAngle);
+              const sy = center.y + radius * Math.sin(startAngle);
+              const ex = center.x + radius * Math.cos(endAngle);
+              const ey = center.y + radius * Math.sin(endAngle);
+              
+              let angleDiff = endAngle - startAngle;
+              while (angleDiff < 0) angleDiff += 2 * Math.PI;
+              while (angleDiff >= 2 * Math.PI) angleDiff -= 2 * Math.PI;
+              const largeArc = angleDiff > Math.PI ? 1 : 0;
+              const sweep = 0;
+
+              out.push(`      <path d="M ${projX(sx)} ${projectY(sy)} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${projX(ex)} ${projectY(ey)}" stroke="${stroke}" stroke-width="${sw}"/>`);
+            }
+          } else if (prim.points) {
+            const d = prim.points.map((p: Point) => `${projX(p.x)},${projectY(p.y)}`).join(" ");
+            out.push(`      <polyline points="${d}" stroke="${stroke}" stroke-width="${sw}"/>`);
+          }
+        }
+      } else {
+        const pts = getBounds(el);
+        if (pts.length >= 2) {
+          const d = pts.map(p => `${projX(p.x)},${projectY(p.y)}`).join(" ");
+          out.push(`      <polyline points="${d}" stroke="${stroke}" stroke-width="${sw}"/>`);
+        }
+      }
+    }
+    out.push('    </g>');
+
+    // 3d. Fixtures (from the layout, not the drawing elements)
+    out.push('    <g id="fixtures">');
+    for (const f of layout.fixtures) {
+      const pt = { x: f.x, y: f.y };
+      const r = px(5);
+      
+      const rawKind = String(f.kind ?? "").toLowerCase().replace(/[_\s-]/g, "");
+      
+      let fill = "#94A3B8";
+      let stroke = "#64748B";
+      let glyph = "";
+
+      if (rawKind.includes("luminaire") || rawKind === "light" || rawKind === "downlight" || rawKind === "ledpanel") {
+        fill = "#FACC15";
+        stroke = "#854D0E";
+        glyph = "L";
+      } else if (rawKind.includes("emergency")) {
+        fill = "#EF4444";
+        stroke = "#7F1D1D";
+        glyph = "E";
+      } else if (rawKind.includes("sensor") || rawKind.includes("presence") || rawKind.includes("occupancy") || rawKind.includes("motion")) {
+        fill = "#FB923C";
+        stroke = "#7C2D12";
+        glyph = "S";
+      } else if (rawKind.includes("switch") || rawKind === "wallswitch") {
+        fill = "#22D3EE";
+        stroke = "#0E7490";
+        glyph = "W";
+      } else if (rawKind.includes("gateway")) {
+        fill = "#A855F7";
+        stroke = "#581C87";
+        glyph = "G";
+      } else if (rawKind.includes("controller") || rawKind.includes("powersupply") || rawKind.includes("driver")) {
+        fill = "#34D399";
+        stroke = "#065F46";
+        glyph = "C";
+      }
+      
+      out.push(
+        `      <circle cx="${projX(pt.x)}" cy="${projectY(pt.y)}" r="${r}" ` +
+        `fill="${fill}" stroke="${stroke}" stroke-width="${px(1.5)}"/>`
+      );
+
+      if (glyph) {
+        out.push(
+          `      <text x="${projX(pt.x)}" y="${projectY(pt.y) + px(1.5)}" text-anchor="middle" dominant-baseline="middle" ` +
+          `font-family="monospace" font-size="${px(5.5)}" font-weight="700" fill="#0A0A0A">` +
+          `${glyph}</text>`
+        );
+      }
+    }
+    out.push('    </g>');
+
+    out.push('</svg>');
+
+    return {
+      format: 'svg',
+      mimeType: 'image/svg+xml',
+      fileName: `fixture-layout-${layout.documentId}.svg`,
+      content: out.join("\n"),
     };
   }
 }
