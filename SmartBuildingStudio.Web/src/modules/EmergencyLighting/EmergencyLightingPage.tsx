@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { EmergencySidebar } from '@/modules/EmergencyLighting/Sidebar/EmergencySidebar';
 import { EmergencyInspector } from '@/modules/EmergencyLighting/Inspector/EmergencyInspector';
 import { EmergencyCanvas } from '@/modules/EmergencyLighting/Canvas/EmergencyCanvas';
+import { EmergencyToolbar } from '@/modules/EmergencyLighting/Toolbar/EmergencyToolbar';
 import { loadEmergencyFloorplan } from '@/modules/EmergencyLighting/store/emergencyThunks';
 
 export const EmergencyLightingPage: React.FC = () => {
@@ -34,22 +35,25 @@ export const EmergencyLightingPage: React.FC = () => {
   }
 
   return (
-    <div 
-      style={{ 
-        display: 'flex', 
+    <div
+      style={{
+        display: 'flex',
         flexDirection: 'column',
         width: '100%',
-        height: '100%', 
+        height: '100%',
         overflow: 'hidden',
-        background: '#090D16' 
+        background: '#090D16',
       }}
     >
-      <div 
-        style={{ 
-          display: 'flex', 
-          flex: 1, 
+      {/* Toolbar spans the full width above the three-panel layout */}
+      <EmergencyToolbar />
+
+      <div
+        style={{
+          display: 'flex',
+          flex: 1,
           minHeight: 0,
-          overflow: 'hidden' 
+          overflow: 'hidden',
         }}
       >
         <EmergencySidebar />

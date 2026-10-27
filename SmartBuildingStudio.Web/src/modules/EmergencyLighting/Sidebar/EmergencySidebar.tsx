@@ -4,6 +4,8 @@ import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { toggleLayer, setActivePanel } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { loadRawGeometry } from '@/modules/EmergencyLighting/store/emergencyThunks';
+import { SimulationResultsPanel } from '@/modules/EmergencyLighting/Sidebar/SimulationResultsPanel';
+import { ComplianceGroup } from '@/modules/EmergencyLighting/Toolbar/groups/ComplianceGroup';
 
 export const EmergencySidebar: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -14,7 +16,6 @@ export const EmergencySidebar: React.FC = () => {
   const handleToggle = (key: string) => {
     const isEnabling = !(layers as any)[key];
     dispatch(toggleLayer(key as any));
-
     if (key === 'rawgeometry' && isEnabling && rawGeometryStatus === 'idle') {
       dispatch(loadRawGeometry());
     }
@@ -61,9 +62,19 @@ export const EmergencySidebar: React.FC = () => {
           );
         })}
 
-        {activePanel === 'simulation' && <div style={{ marginTop: '20px', color: '#64748B', fontSize: '11px' }}>Simulation controls will go here.</div>}
-        {activePanel === 'compliance' && <div style={{ marginTop: '20px', color: '#64748B', fontSize: '11px' }}>Compliance issues will go here.</div>}
-        {activePanel === 'routes' && <div style={{ marginTop: '20px', color: '#64748B', fontSize: '11px' }}>Evacuation routes will go here.</div>}
+        <div style={{ borderTop: '1px solid #1E293B', marginTop: 12, paddingTop: 12 }}>
+          {activePanel === 'simulation' && <SimulationResultsPanel />}
+          {activePanel === 'compliance' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <ComplianceGroup />
+              <div style={{ color: '#64748B', fontSize: '11px', lineHeight: 1.5 }}>
+                Add evacuation routes here. Routes are validated against the 30m
+                travel-distance limit when you run the simulation from the Simulation tab.
+              </div>
+            </div>
+          )}
+          {activePanel === 'routes' && <div style={{ color: '#64748B', fontSize: '11px' }}>Evacuation routes list coming soon.</div>}
+        </div>
       </div>
     </div>
   );
