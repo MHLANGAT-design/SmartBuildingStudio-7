@@ -1,39 +1,4 @@
 ﻿// src/modules/DaliDesigner/Canvas/DaliCanvas.tsx
-//
-// The DALI Designer canvas.
-//
-// Two stacked layers inside one container:
-//   1. <canvas> — the floorplan, drawn by FloorPlanDesigner's
-//      CanvasRenderer.clearAndDraw.
-//   2. <svg>    — overlays, one SVG layer per concern.
-//
-// Both layers share the same ViewTransform.
-//
-// Pan architecture (standardised with FPD/FPS):
-//   • Middle-drag                → pan (CAD convention)
-//   • Space + left-drag          → pan (2D-tool convention)
-//   • Hand tool (GlobalZoomControl) → left-drag pans while active
-//   • Right-click                → ignored (reserved for future context menu)
-//   • Left-click on canvas       → no-op (device selection is via
-//                                  DeviceLayer / sidebar, not canvas)
-//
-// LEVEL 1 LOCK ENFORCEMENT:
-//   When the source floorplan document is locked by another user, a
-//   yellow banner appears at the top of the canvas and the cursor
-//   reverts to `default`. All editing happens through the toolbar /
-//   sidebar (not on the canvas), so the canvas itself only needs to
-//   signal the state — the toolbar groups do the blocking.
-//
-// LOAD ORCHESTRATION:
-//   This component no longer dispatches loadFloorplan. The page
-//   (DaliDesignerPage) owns the load sequence so it can gate rendering
-//   on BOTH the DALI network AND the floorplan geometry being ready.
-//   Previously, DaliCanvas mounted before geometry had loaded and
-//   briefly rendered new DALI devices over old floorplan walls.
-//
-// Zoom surface: registers a ZoomableSurface with the shared registry.
-// Double-click on the canvas → zoom to nearest device (if any within
-// ~24px of the click) or fall back to fitToContent.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -51,6 +16,8 @@ import {
   selectFloorplanModel,
   selectFloorplanStatus,
   selectFloorplanError,
+  selectRawGeometry,
+  selectLayerVisibility,
 } from "@/modules/DaliDesigner/store/daliSelectors";
 
 import { useDaliCanvasZoom } from "@/modules/DaliDesigner/hooks/useDaliCanvasZoom";
@@ -108,10 +75,8 @@ export function DaliCanvas() {
   const { scale, setZoom, handleWheel } = useDaliCanvasZoom();
   const panMode = usePanMode();
 
-  // ── Lock state (Level 1 enforcement) ─────────────────────────────
   const { isReadOnly, lockedByUsername } = useDaliLockState();
 
-  // Pan-gesture tracking (mirrors FPD/FPS).
   const isMiddlePanningRef = useRef(false);
   const isSpacePanningRef = useRef(false);
   const isPanModePanningRef = useRef(false);
@@ -121,8 +86,19 @@ export function DaliCanvas() {
   const fpStatus = useAppSelector(selectFloorplanStatus);
   const fpError = useAppSelector(selectFloorplanError);
   const devices = useAppSelector(selectDevices);
+  const rawGeometry = useAppSelector(selectRawGeometry);
+  const layers = useAppSelector(selectLayerVisibility);
 
-  // ── Zoom surface registration ─────────────────────────────────────
+  // ── Combined model (floorplan + lazy raw geometry) ────────────────
+  const combinedModel = useMemo(() => {
+    if (!model) return null;
+    const elements = [...model.elements];
+    if (layers.rawgeometry && rawGeometry.length > 0) {
+      elements.push(...rawGeometry);
+    }
+    return { ...model, elements };
+  }, [model, rawGeometry, layers.rawgeometry]);
+
   const zoomSurface = useMemo<ZoomableSurface>(() => ({
     moduleName: "DALI Designer",
     getZoom: () => scale,
@@ -150,10 +126,7 @@ export function DaliCanvas() {
       const zoomForW = (tf.width * fill) / (worldW * naturalScaleX);
       const zoomForH = (tf.height * fill) / (worldH * naturalScaleY);
       const rawTarget = Math.min(zoomForW, zoomForH);
-      const targetZoom = Math.min(
-        Math.max(rawTarget, minZoom),
-        Math.min(maxZoom, ZOOM_MAX)
-      );
+      const targetZoom = Math.min(Math.max(rawTarget, minZoom), Math.min(maxZoom, ZOOM_MAX));
       if (!Number.isFinite(targetZoom) || targetZoom <= 0) return;
 
       const newFinalScale = naturalScaleX * targetZoom;
@@ -173,12 +146,6 @@ export function DaliCanvas() {
 
   useZoomSurface(zoomSurface);
 
-  // NOTE: floorplan loading is dispatched from DaliDesignerPage, not here.
-  // The page waits for both the network and the geometry to be ready
-  // before mounting this component, so by the time we render, `model`
-  // is guaranteed to belong to the current floorplanId.
-
-  // Track container size.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -195,7 +162,6 @@ export function DaliCanvas() {
     return () => ro.disconnect();
   }, []);
 
-  // Native wheel listener — React's synthetic one is passive.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -205,7 +171,6 @@ export function DaliCanvas() {
     return () => canvas.removeEventListener("wheel", handler);
   }, [handleWheel]);
 
-  // ── Keyboard: Space → pan cursor ─────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
@@ -240,13 +205,13 @@ export function DaliCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Bounds (memoized on the two inputs that actually change shape) ──
+  // Bounds — now uses combinedModel so raw geometry extends the view when enabled
   const bounds = useMemo(() => {
     let b = { minX: -10000, minY: -10000, maxX: 10000, maxY: 10000 };
     const pts: Array<{ x: number; y: number }> = [];
 
-    if (model) {
-      for (const el of model.elements) {
+    if (combinedModel) {
+      for (const el of combinedModel.elements) {
         for (const p of el.points ?? []) {
           if (Number.isFinite(p.x) && Number.isFinite(p.y)) pts.push(p);
         }
@@ -268,9 +233,8 @@ export function DaliCanvas() {
       b.maxY = cy + MIN_BOUNDS_SPAN / 2;
     }
     return b;
-  }, [model, devices]);
+  }, [combinedModel, devices]);
 
-  // ── View transform ──────────────────────────────────────────────────
   const tf: ViewTransform = useMemo(() => {
     return computeViewTransform({
       bounds,
@@ -286,7 +250,6 @@ export function DaliCanvas() {
 
   transformRef.current = tf;
 
-  // ── Plan render effect — rAF-coalesced ──────────────────────────────
   const pendingRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -295,10 +258,11 @@ export function DaliCanvas() {
       pendingRef.current = null;
     }
 
-    const _model = model;
+    const _model = combinedModel;
     const _canvasSize = canvasSize;
     const _scale = scale;
     const _offset = offset;
+    const _rawVisible = layers.rawgeometry;
 
     pendingRef.current = requestAnimationFrame(() => {
       pendingRef.current = null;
@@ -340,6 +304,7 @@ export function DaliCanvas() {
               doors: true,
               windows: true,
               rooms: true,
+              rawgeometry: _rawVisible,
               fixtures: false,
             },
             selectedId: null,
@@ -358,34 +323,28 @@ export function DaliCanvas() {
         pendingRef.current = null;
       }
     };
-  }, [model, canvasSize, scale, offset]);
+  }, [combinedModel, canvasSize, scale, offset, layers.rawgeometry]);
 
-  // ── Pointer handlers ────────────────────────────────────────────────
   const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === MOUSE_RIGHT) return;
-
     if (e.button === MOUSE_MIDDLE) {
       e.preventDefault();
       isMiddlePanningRef.current = true;
       handleMouseDown(e);
       return;
     }
-
     if (e.button === MOUSE_LEFT && isSpaceDown) {
       e.preventDefault();
       isSpacePanningRef.current = true;
       handleMouseDown(e);
       return;
     }
-
     if (e.button === MOUSE_LEFT && panMode) {
       e.preventDefault();
       isPanModePanningRef.current = true;
       handleMouseDown(e);
       return;
     }
-
-    // Left-click without a pan modifier: no-op on the canvas.
   };
 
   const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -449,7 +408,6 @@ export function DaliCanvas() {
     e.preventDefault();
   };
 
-  // ── Cursor style ────────────────────────────────────────────────────
   const cursorStyle = useMemo(() => {
     if (isMiddlePanningRef.current || isSpacePanningRef.current || isPanModePanningRef.current) {
       return "grabbing";
@@ -460,7 +418,6 @@ export function DaliCanvas() {
     return "crosshair";
   }, [panMode, isSpaceDown, isPanning, isReadOnly]);
 
-  // ── Render ──────────────────────────────────────────────────────────
   return (
     <div
       ref={containerRef}

@@ -19,6 +19,7 @@ import ProjectExplorerPage from '@/modules/ProjectExplorer/ProjectExplorerPage';
 import { FloorPlanDesigner } from '@/modules/FloorPlanDesigner/FloorPlanDesigner';
 import { FixturePlacementStudioPage } from '@/modules/FixturePlacementStudio';
 import { DaliDesignerPage } from '@/modules/DaliDesigner';
+import { EmergencyLightingPage } from '@/modules/EmergencyLighting';
 import { ManufacturerAdminPage } from '@/modules/Admin/ManufacturerAdminPage';
 
 // Slice actions used by the document boundary.
@@ -48,10 +49,6 @@ const DocumentBoundary: React.FC<{ children: React.ReactNode }> = ({ children })
     if (lastDocIdRef.current === urlDocumentId) return;
 
     lastDocIdRef.current = urlDocumentId;
-
-    console.log('[DocumentBoundary] document changed — clearing slices', {
-      to: urlDocumentId,
-    });
 
     // Floor plan slice: geometry, elements, fixtures, metadata.
     dispatch(clearDocument());
@@ -121,12 +118,7 @@ const DesignerRoute = () => {
       return <DaliDesignerPage />;
     }
     case 'emergency':
-      return (
-        <div style={{ padding: 20, color: '#FFF', fontFamily: 'monospace' }}>
-          <h1>Module Not Yet Available</h1>
-          <p>Mode: {mode}</p>
-        </div>
-      );
+      return <EmergencyLightingPage />;
     case 'import':
     case 'floorplans':
     default:

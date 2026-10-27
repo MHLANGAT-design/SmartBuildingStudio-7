@@ -3,8 +3,8 @@
 // Compact single-row navigation hub for the Dashboard.
 //
 // Each button routes to a module entry point. Engineered studios
-// (Floor Plan Designer, FPS, DALI) route through ProjectExplorer with
-// an `intent` query param so the user picks a document from the tree
+// (Floor Plan Designer, FPS, DALI, Emergency) route through ProjectExplorer
+// with an `intent` query param so the user picks a document from the tree
 // first. ProjectExplorer then either skips the DesignAccessModal or
 // shows it depending on the intent.
 //
@@ -55,12 +55,11 @@ export default function QuickLaunchWidget() {
       accent: "#8B5CF6",
     },
     {
-      name: "Emergency Lighting Rules",
+      name: "Emergency Lighting",
       shortLabel: "Emergency",
-      path: "/designer/emergency",
+      path: "/explorer?intent=emergency",
       icon: "🚨",
       accent: "#F43F5E",
-      disabled: true,
     },
     {
       name: "Compliance Reports Panel",

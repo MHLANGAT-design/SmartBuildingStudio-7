@@ -1,13 +1,18 @@
 // src/modules/DaliDesigner/Canvas/LayerManager.tsx
+
 import React from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { selectLayerVisibility } from "@/modules/DaliDesigner/store/daliSelectors";
+import {
+  selectLayerVisibility,
+  selectRawGeometryStatus,
+} from "@/modules/DaliDesigner/store/daliSelectors";
 import {
   toggleLayer,
   showAllLayers,
   hideAllLayers,
   type LayerVisibility,
 } from "@/modules/DaliDesigner/store/daliSlice";
+import { loadRawGeometry } from "@/modules/DaliDesigner/store/daliThunks";
 
 interface LayerDef {
   key: keyof LayerVisibility;
@@ -24,14 +29,26 @@ const LAYERS: LayerDef[] = [
   { key: "network",      label: "Network" },
   { key: "signalFlow",   label: "Signal Flow" },
   { key: "validation",   label: "Validation" },
+  { key: "rawgeometry",  label: "CAD Background" },
 ];
 
 export function LayerManager() {
   const dispatch = useAppDispatch();
   const visibility = useAppSelector(selectLayerVisibility);
+  const rawGeometryStatus = useAppSelector(selectRawGeometryStatus);
   const [open, setOpen] = React.useState(false);
 
   const activeCount = LAYERS.filter((l) => visibility[l.key]).length;
+
+  const handleToggle = (key: keyof LayerVisibility) => {
+    const isEnabling = !visibility[key];
+    dispatch(toggleLayer(key));
+
+    // Lazily fetch raw geometry the first time the user enables it
+    if (key === "rawgeometry" && isEnabling && rawGeometryStatus === "idle") {
+      dispatch(loadRawGeometry());
+    }
+  };
 
   return (
     <div className="dali-layer-manager" style={panelStyle}>
@@ -50,16 +67,20 @@ export function LayerManager() {
 
       {open && (
         <div style={bodyStyle}>
-          {LAYERS.map((l) => (
-            <label key={l.key} style={rowStyle}>
-              <input
-                type="checkbox"
-                checked={visibility[l.key]}
-                onChange={() => dispatch(toggleLayer(l.key))}
-              />
-              <span>{l.label}</span>
-            </label>
-          ))}
+          {LAYERS.map((l) => {
+            const isLoading = l.key === "rawgeometry" && rawGeometryStatus === "loading";
+            return (
+              <label key={l.key} style={rowStyle}>
+                <input
+                  type="checkbox"
+                  checked={visibility[l.key]}
+                  onChange={() => handleToggle(l.key)}
+                  disabled={isLoading}
+                />
+                <span>{l.label}{isLoading ? " (loading…)" : ""}</span>
+              </label>
+            );
+          })}
 
           <div style={actionsStyle}>
             <button type="button" onClick={() => dispatch(showAllLayers())} style={btnStyle}>

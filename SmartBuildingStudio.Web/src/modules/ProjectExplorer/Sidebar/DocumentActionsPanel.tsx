@@ -1,14 +1,14 @@
 // src/modules/ProjectExplorer/Sidebar/DocumentActionsPanel.tsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Lightbulb, Zap, FilePlus } from "lucide-react";
+import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/Application/ConfigureStore";
 import {
   selectSelectedNode,
 } from "@/modules/ProjectExplorer/Store/ProjectExplorerSelectors";
 import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 
-type Mode = "floorplans" | "fixtures" | "import" | "dali";
+type Mode = "floorplans" | "fixtures" | "import" | "dali" | "emergency";
 
 interface ActionTile {
   mode: Mode;
@@ -39,6 +39,13 @@ const TILES: ActionTile[] = [
     hint: "Commission addresses, groups, scenes",
     icon: <Zap size={18} />,
     accent: "#8B5CF6",
+  },
+  {
+    mode: "emergency",
+    label: "Emergency Lighting",
+    hint: "Run compliance simulation and export safety reports",
+    icon: <AlertTriangle size={18} />,
+    accent: "#F43F5E", // Rose/Red color for safety/emergency
   },
   {
     mode: "import",
@@ -137,7 +144,7 @@ export function DocumentActionsPanel() {
     );
 
     // 2. Expose the same context on window for peripheral integrations
-    //    (FixturePlacementStudio, DALI Designer, etc.).
+    //    (FixturePlacementStudio, DALI Designer, Emergency Lighting, etc.).
     (window as any).__activeDocumentId = String(documentId);
     (window as any).__designerMode = mode;
     (window as any).__activeDocumentContext = {
@@ -166,6 +173,7 @@ export function DocumentActionsPanel() {
     const urlMode =
       mode === "import" ? "floorplans" :
       mode === "fixtures" ? "fixtures" :
+      mode === "emergency" ? "emergency" :
       "floorplans";
 
     const params = new URLSearchParams({
