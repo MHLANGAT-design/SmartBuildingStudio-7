@@ -34,7 +34,7 @@ export abstract class BaseTool implements ITool {
         this._viewport = context?.viewport || (window as any).__viewport || (window as any).__floorPlanActiveViewportInstance;
 
         this.onActivate();
-        
+
         window.removeEventListener("keydown", this.handleGlobalKeyDown);
         window.addEventListener("keydown", this.handleGlobalKeyDown);
     }
@@ -47,17 +47,16 @@ export abstract class BaseTool implements ITool {
 
     protected onActivate(): void {}
     protected onDeactivate(): void {}
-    
-    public isActive(): boolean { 
-        return this.active; 
+
+    public isActive(): boolean {
+        return this.active;
     }
 
     protected applyInitialSnap(targetTool: any): boolean {
         const snapSource = SnapService.lastActiveSnap;
         const rawResult = (window as any).__floorPlanLastSnapResultRaw;
-        
+
         if (!snapSource || !snapSource.world || !rawResult || !rawResult.type) {
-            console.log(`[BaseTool Initial Snap]: Cursor in void canvas space. Waiting for user click input.`);
             return false;
         }
 
@@ -84,14 +83,13 @@ export abstract class BaseTool implements ITool {
 
     public handleGlobalKeyDown(e: KeyboardEvent): void {
         if (!this.active) return;
-        
+
         if (e.key === "Escape" || e.key === "Esc") {
-            console.log(`[CAD Interface Command]: Escape signal caught. Cancelling active tool: ${this.getName()}`);
             e.preventDefault();
             e.stopPropagation();
-            
+
             this.cancel();
-            
+
             if (this.getId() !== "select") {
                 window.dispatchEvent(new CustomEvent("sbs:tool-change", { detail: { id: "select" } }));
                 window.dispatchEvent(new CustomEvent("canvas-invalidate"));
@@ -105,11 +103,11 @@ export abstract class BaseTool implements ITool {
     public onDoubleClick(_event: ToolPointerEvent): void {}
     public onKeyDown(_event: KeyboardEvent): void {}
     public onKeyUp(_event: KeyboardEvent): void {}
-    
-    public cancel(): void { 
-        this.requestRender(); 
+
+    public cancel(): void {
+        this.requestRender();
     }
-    
+
     public renderOverlay(_context: CanvasRenderingContext2D): void {}
 
     protected requestRender(): void {

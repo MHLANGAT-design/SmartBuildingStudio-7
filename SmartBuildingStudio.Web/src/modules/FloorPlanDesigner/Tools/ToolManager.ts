@@ -13,12 +13,11 @@ export class ToolManager {
     private readonly tools = new Map<string, ITool>();
     private activeTool?: ITool;
     private readonly context: ToolContext;
-    
+
     private dispatchReference?: any;
 
     constructor(context: ToolContext) {
         this.context = context;
-        console.log('[ToolManager] Created with context:', context);
     }
 
     public setDispatcher(dispatch: any): void {
@@ -30,7 +29,6 @@ export class ToolManager {
     // --------------------------------------------------------
 
     public register(tool: ITool): void {
-        console.log(`[ToolManager] Registering tool: ${tool.getId()}`);
         this.tools.set(tool.getId(), tool);
     }
 
@@ -47,7 +45,6 @@ export class ToolManager {
     // --------------------------------------------------------
 
     public activate(toolId: string): void {
-        console.log(`[ToolManager] 🔄 Activating tool: ${toolId}`);
         const tool = this.tools.get(toolId);
         if (!tool) {
             console.error(`[ToolManager] ❌ Tool '${toolId}' not registered. Available:`, this.getRegisteredToolIds());
@@ -55,14 +52,12 @@ export class ToolManager {
         }
 
         if (this.activeTool?.getId() === toolId) {
-            console.log(`[ToolManager] ⏭️ Tool '${toolId}' already active.`);
             return;
         }
 
         this.activeTool?.deactivate();
         this.activeTool = tool;
         this.activeTool.activate(this.context);
-        console.log(`[ToolManager] ✅ Tool '${toolId}' activated.`);
     }
 
     public deactivateCurrent(): void {
@@ -95,24 +90,21 @@ export class ToolManager {
     }
 
     // --------------------------------------------------------
-    // Pointer Events (with debug logs)
+    // Pointer Events
     // --------------------------------------------------------
 
     public onPointerDown(event: ToolPointerEvent): void {
-        console.log(`[ToolManager] ⬇️ onPointerDown, active tool: ${this.activeTool?.getId() || 'none'}`);
         this.activeTool?.onPointerDown(event);
     }
 
     public onPointerMove(event: ToolPointerEvent): void {
-        console.log(`[ToolManager] ➡️ onPointerMove, active tool: ${this.activeTool?.getId() || 'none'}`);
         this.activeTool?.onPointerMove(event);
     }
 
     public onPointerUp(event: ToolPointerEvent): void {
-        console.log(`[ToolManager] ⬆️ onPointerUp, active tool: ${this.activeTool?.getId() || 'none'}`);
         this.activeTool?.onPointerUp(event);
 
-        // Auto‑selection logic (unchanged)
+        // Auto-selection logic (unchanged)
         if (this.dispatchReference && this.context) {
             try {
                 const doc = this.context.getDocument?.() || (this.context as any).drawingDocument;
@@ -150,7 +142,6 @@ export class ToolManager {
     }
 
     public onDoubleClick(event: ToolPointerEvent): void {
-        console.log(`[ToolManager] 👆 onDoubleClick, active tool: ${this.activeTool?.getId() || 'none'}`);
         this.activeTool?.onDoubleClick(event);
     }
 
