@@ -1,6 +1,6 @@
 // src/modules/FloorPlanDesigner/Store/FloorPlanSlice.ts
-// ✅ CONSOLIDATED + reclassifyElement reducer
-// [existing header comment unchanged]
+// ✅ CONSOLIDATED + reclassifyElement reducer + calibration/measurements/hoveredId
+// ── ADDED ── calibration, measurements, hoveredId state + reducers
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
@@ -11,7 +11,6 @@ import {
 } from "./reclassifyHelpers";
 
 // ─── Core Types ───────────────────────────────────────────────────────────────
-// [unchanged from your version]
 
 export interface Point2D { x: number; y: number; }
 
@@ -99,7 +98,6 @@ export interface FloorPlanDocument {
 }
 
 // ─── State Slices ─────────────────────────────────────────────────────────────
-// [unchanged]
 
 export interface ViewportState { zoom: number; offsetX: number; offsetY: number; }
 
@@ -139,6 +137,29 @@ export type FloorPlanTool =
 export type FloorPlanMode =
   | "idle" | "drawing" | "editing" | "measuring" | "panning";
 
+// ── ADDED ── CalibrationState ──────────────────────────────────────────────
+export interface CalibrationState {
+  p1: Point2D | null;
+  p2: Point2D | null;
+  knownDistance: number | null;
+  unit: string;
+  pxPerUnit: number | null;
+}
+
+// ── ADDED ── MeasurementState ──────────────────────────────────────────────
+export interface Measurement {
+  id: string;
+  from: Point2D;
+  to: Point2D;
+  label?: string;
+}
+
+export interface MeasurementState {
+  committed: Measurement[];
+  draftFrom: Point2D | null;
+  cursor: Point2D | null;
+}
+
 export interface FloorPlanState {
   document: FloorPlanDocument;
   isSaving: boolean;
@@ -157,6 +178,10 @@ export interface FloorPlanState {
   version: number;
   lastSaved?: Date;
   lastSavedPayload?: any;
+  // ── ADDED ──
+  calibration: CalibrationState;
+  measurements: MeasurementState;
+  hoveredId: string | null;
 }
 
 const initialViewport: ViewportState = { zoom: 1, offsetX: 0, offsetY: 0 };
@@ -186,6 +211,15 @@ const initialUi: FloorPlanUiState = {
   toolbarVisible: true, statusBarVisible: true,
 };
 
+// ── ADDED ── new initial state slices
+const initialCalibration: CalibrationState = {
+  p1: null, p2: null, knownDistance: null, unit: "mm", pxPerUnit: null,
+};
+
+const initialMeasurements: MeasurementState = {
+  committed: [], draftFrom: null, cursor: null,
+};
+
 const initialState: FloorPlanState = {
   document: {
     id: "", name: "",
@@ -203,7 +237,19 @@ const initialState: FloorPlanState = {
   changeTrigger: 0,
   version: 0,
   lastSaved: undefined, lastSavedPayload: undefined,
+  // ── ADDED ──
+  calibration: initialCalibration,
+  measurements: initialMeasurements,
+  hoveredId: null,
 };
+
+// ── ADDED ── derive pxPerUnit from calibration geometry
+function recomputePxPerUnit(c: CalibrationState): number | null {
+  if (!c.p1 || !c.p2 || !c.knownDistance || c.knownDistance <= 0) return null;
+  const worldDist = Math.hypot(c.p2.x - c.p1.x, c.p2.y - c.p1.y);
+  if (worldDist <= 0) return null;
+  return worldDist / c.knownDistance;
+}
 
 // ─── Merge helpers ────────────────────────────────────────────────────────────
 
@@ -229,7 +275,6 @@ const floorPlanSlice = createSlice({
   initialState,
   reducers: {
     // ── Document & Metadata ────────────────────────────────────────────
-    // [setDocument, setDocumentMetadata unchanged from your version]
     setDocument: (state, action: PayloadAction<any>) => {
       const raw = action.payload;
       if (!raw) return;
@@ -262,6 +307,10 @@ const floorPlanSlice = createSlice({
         state.selection = null;
         state.multiSelection = [];
         state.isDirty = false;
+        // ── ADDED ── clear calibration/measurements on document switch
+        state.calibration = { ...initialCalibration };
+        state.measurements = { ...initialMeasurements, committed: [] };
+        state.hoveredId = null;
 
         const newWalls = (state.document as any).walls;
         if (Array.isArray(newWalls) && newWalls.length > 0) {
@@ -369,7 +418,6 @@ const floorPlanSlice = createSlice({
     },
 
     setDocumentMetadata: (state, action: PayloadAction<any>) => {
-      // [unchanged from your version — full body would be identical]
       const payload = action.payload;
       if (!payload) return;
       const queryParams = new URLSearchParams(window.location.search);
@@ -407,22 +455,7 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── NEW: Reclassify ───────────────────────────────────────────────
-    //
-    // Moves an element between wall / door / window / raw in a single
-    // atomic update. Called by the inspector's reclassify control when
-    // the user corrects a misclassified element.
-    //
-    // What it does:
-    //   1. Removes the element from its current semantic array.
-    //   2. Adds it to the target semantic array (rebuilt in the target's
-    //      shape from the element's axis).
-    //   3. Flips the composite element's `type` field so the renderer
-    //      and explorer agree on the new class.
-    //   4. Marks the document dirty.
-    //
-    // Target "raw" means "remove from all semantic arrays, leave the
-    // element in `document.elements` with type 'rawgeometry'".
+    // ── Reclassify ────────────────────────────────────────────────────
     reclassifyElement: (
       state,
       action: PayloadAction<{ id: string; target: ReclassifyTarget }>
@@ -434,14 +467,12 @@ const floorPlanSlice = createSlice({
       const doc = state.document as any;
       const elements: any[] = Array.isArray(doc?.elements) ? doc.elements : [];
 
-      // Find the element in the composite stream
       const element = elements.find((e) => String(e.id ?? e.Id) === idStr);
       if (!element) {
         console.warn("[reclassifyElement] element not found:", idStr);
         return;
       }
 
-      // Remove from all semantic arrays
       const prevWalls = doc.walls ?? [];
       const prevDoors = doc.doors ?? [];
       const prevWindows = doc.windows ?? [];
@@ -453,7 +484,6 @@ const floorPlanSlice = createSlice({
       const cleanedDoors = notMine(prevDoors);
       const cleanedWindows = notMine(prevWindows);
 
-      // Add to the target array (if not "raw")
       let nextWalls = cleanedWalls;
       let nextDoors = cleanedDoors;
       let nextWindows = cleanedWindows;
@@ -468,10 +498,7 @@ const floorPlanSlice = createSlice({
         const win = windowShapeFrom(element);
         if (win) nextWindows = [...cleanedWindows, win];
       }
-      // target === "raw": semantic arrays stay cleaned (removed only).
 
-      // Update the composite element's type so the renderer picks the
-      // right color and the explorer files it under the right bucket.
       const nextElements = elements.map((e) => {
         if (String(e.id ?? e.Id) !== idStr) return e;
         const newType =
@@ -491,14 +518,6 @@ const floorPlanSlice = createSlice({
       } as any;
 
       state.isDirty = true;
-
-      // Clear selection if the reclassified element was selected — its
-      // composite shape may have changed enough that the inspector
-      // should re-resolve it from the (updated) semantic array.
-      if (state.selection && String(state.selection.id ?? state.selection.Id) === idStr) {
-        // Keep the selection, but the inspector will re-render with the
-        // new semantic array. No change needed here.
-      }
     },
 
     // ── Dirty / Saving Flags ────────────────────────────────────────────
@@ -529,6 +548,60 @@ const floorPlanSlice = createSlice({
       state.multiSelection = Array.from(merged);
     },
     clearMultiSelection: (state) => { state.multiSelection = []; },
+
+    // ── ADDED ── Hover ────────────────────────────────────────────────
+    setHoveredId: (state, action: PayloadAction<string | null>) => {
+      state.hoveredId = action.payload;
+    },
+
+    // ── ADDED ── Calibration ─────────────────────────────────────────
+    setCalibrationPoint: (
+      state,
+      action: PayloadAction<{ which: "p1" | "p2"; point: Point2D | null }>
+    ) => {
+      state.calibration[action.payload.which] = action.payload.point;
+      state.calibration.pxPerUnit = recomputePxPerUnit(state.calibration);
+    },
+    setCalibrationDistance: (
+      state,
+      action: PayloadAction<{ knownDistance: number | null; unit?: string }>
+    ) => {
+      state.calibration.knownDistance = action.payload.knownDistance;
+      if (action.payload.unit) state.calibration.unit = action.payload.unit;
+      state.calibration.pxPerUnit = recomputePxPerUnit(state.calibration);
+    },
+    resetCalibration: (state) => {
+      state.calibration = { ...initialCalibration };
+    },
+
+    // ── ADDED ── Measurement ─────────────────────────────────────────
+    addMeasurement: (state, action: PayloadAction<Measurement>) => {
+      state.measurements.committed.push(action.payload);
+      state.measurements.draftFrom = null;
+      state.measurements.cursor = null;
+      state.isDirty = true;
+    },
+    removeMeasurement: (state, action: PayloadAction<string>) => {
+      state.measurements.committed = state.measurements.committed.filter(
+        (m) => m.id !== action.payload
+      );
+      state.isDirty = true;
+    },
+    clearMeasurements: (state) => {
+      state.measurements.committed = [];
+      state.measurements.draftFrom = null;
+      state.measurements.cursor = null;
+      state.isDirty = true;
+    },
+    setMeasurementDraft: (
+      state,
+      action: PayloadAction<{ draftFrom: Point2D | null; cursor?: Point2D | null }>
+    ) => {
+      state.measurements.draftFrom = action.payload.draftFrom;
+      if (action.payload.cursor !== undefined) {
+        state.measurements.cursor = action.payload.cursor;
+      }
+    },
 
     // ── Room CRUD ──────────────────────────────────────────────────────
     addRoom: (state, action: PayloadAction<Room>) => {
@@ -750,6 +823,10 @@ const floorPlanSlice = createSlice({
       state.isDirty = false;
       state.selection = null;
       state.multiSelection = [];
+      // ── ADDED ──
+      state.calibration = { ...initialCalibration };
+      state.measurements = { ...initialMeasurements, committed: [] };
+      state.hoveredId = null;
     },
     resetState: () => initialState,
   },
@@ -778,6 +855,10 @@ export const {
   setLastSaved, setLastSavedPayload,
   clearDocument, resetState,
   reclassifyElement,
+  // ── ADDED ──
+  setHoveredId,
+  setCalibrationPoint, setCalibrationDistance, resetCalibration,
+  addMeasurement, removeMeasurement, clearMeasurements, setMeasurementDraft,
 } = floorPlanSlice.actions;
 
 export default floorPlanSlice.reducer;

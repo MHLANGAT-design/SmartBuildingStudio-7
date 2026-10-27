@@ -21,10 +21,21 @@
 //     • Double-click zoom-to-element works (viewing)
 //     • Marquee select, drawing tools, drag — all blocked
 //     • Cursor is `default` (no crosshair)
-//   Backend PUT /documents/{id} rejects saves with 423, so even if
-//   the UI is bypassed via DevTools, the save fails.
 //
-// No render-path changes. No culling. No text skipping.
+// ── TOOL PIPELINE ──
+//   Geometry tools (wall/room/door/window) and the overlay tools
+//   (measurement-ruler, calibration-ruler) are instantiated directly by
+//   this component on `activeTool` change. All of them self-render their
+//   overlays and self-manage transient state.
+//
+//   The viewport object injected into the active tool each frame exposes
+//   BOTH worldToScreen and screenToWorld. MeasurementRulerTool and
+//   CalibrationRulerTool call screenToWorld on pointer-down; the
+//   wall/room/door/window tools read worldToScreen for overlays.
+//
+//   The live renderPlan is injected as `__document` on the active tool
+//   each frame, so CalibrationRulerTool can snap to real document
+//   endpoints without reading a legacy global.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useCanvasPan } from '@/modules/FloorPlanDesigner/Hooks/useCanvasPan';
@@ -39,6 +50,8 @@ import { WallTool } from '@/modules/FloorPlanDesigner/Tools/WallTool';
 import { RoomTool } from '@/modules/FloorPlanDesigner/Tools/RoomTool';
 import { DoorTool } from '@/modules/FloorPlanDesigner/Tools/DoorTool';
 import { WindowTool } from '@/modules/FloorPlanDesigner/Tools/WindowTool';
+import { MeasurementRulerTool } from '@/modules/FloorPlanDesigner/Tools/MeasurementRulerTool';
+import { CalibrationRulerTool } from '@/modules/FloorPlanDesigner/Tools/CalibrationRulerTool';
 import { SnapService, SnapResult } from '@/modules/FloorPlanDesigner/Utils/SnapService';
 import { CommandManager } from '@/modules/FloorPlanDesigner/Commands/CommandManager';
 import FloorPlanSnapHook from '@/modules/FloorPlanDesigner/Utils/FloorPlanSnapHook';
@@ -47,6 +60,7 @@ import {
   setDocument,
   setMultiSelection,
   clearMultiSelection,
+  setHoveredId as setHoveredIdAction,
 } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
 import {
   hitTestElements,
@@ -58,14 +72,13 @@ import { useZoomSurface } from '@/modules/Shared/Zoom/zoomRegistry';
 import type { ZoomableSurface, WorldRect } from '@/modules/Shared/Zoom/zoomSurface';
 import { usePanMode } from '@/modules/Shared/Zoom/panMode';
 
+// ── Overlay layer imports (rendered inside the world transform block) ──
+import { LayerManager } from '@/modules/FloorPlanDesigner/Canvas/LayerManager';
+import { RenderContext } from '@/modules/FloorPlanDesigner/Canvas/RenderContext';
+
 interface FloorPlanCanvasProps {
   plan?: any;
   activeTool?: string;
-  /**
-   * LEVEL 1 LOCK ENFORCEMENT — set by FloorPlanDesigner when the
-   * current document is locked by another user. Disables all edit
-   * interactions; pan and zoom remain available.
-   */
   isReadOnly?: boolean;
 }
 
@@ -147,9 +160,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
   const dispatch = useAppDispatch();
   const panMode = usePanMode();
 
+  const calibrationState = useAppSelector((state: any) => state.floorPlan?.calibration);
+  const hoveredIdFromRedux = useAppSelector((state: any) => state.floorPlan?.hoveredId);
+
   const transformRef = useRef<any>(null);
 
-  // ── Zoom surface registration ─────────────────────────────────────
   const zoomSurface = useMemo<ZoomableSurface>(() => ({
     moduleName: 'Floor Plan Designer',
 
@@ -355,11 +370,17 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
   const roomToolRef = useRef<RoomTool | null>(null);
   const doorToolRef = useRef<DoorTool | null>(null);
   const windowToolRef = useRef<WindowTool | null>(null);
+  const measurementRulerToolRef = useRef<MeasurementRulerTool | null>(null);
+  const calibrationRulerToolRef = useRef<CalibrationRulerTool | null>(null);
   const [currentTool, setCurrentTool] = useState(activeTool);
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoverRafRef = useRef<number | null>(null);
   const pendingHoverPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    dispatch(setHoveredIdAction(hoveredId));
+  }, [hoveredId, dispatch]);
 
   const dragStartWorldRef = useRef<{ x: number; y: number } | null>(null);
   const dragCurrentWorldRef = useRef<{ x: number; y: number } | null>(null);
@@ -431,7 +452,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
 
   useEffect(() => {
     const handleKeyDownDelete = (e: KeyboardEvent) => {
-      // Read-only: block Delete / Backspace too.
       if (isReadOnly) return;
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
 
@@ -558,7 +578,21 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
   }, [isReadOnly]);
 
   useEffect(() => {
-    const handleKeyDownEscape = (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+
+      const tool = getActiveToolInstance();
+      if (tool && typeof (tool as any).onKeyDown === 'function') {
+        try {
+          const consumed = (tool as any).onKeyDown(e);
+          if (consumed === true) {
+            e.preventDefault();
+            return;
+          }
+        } catch { /* tool swallowed the error */ }
+      }
+
       if (e.key !== 'Escape') return;
       const win = window as any;
       const state = win.__floorPlanGetState?.() || {};
@@ -570,12 +604,20 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
         window.dispatchEvent(new CustomEvent('sbs:canvas-update'));
       }
     };
-    window.addEventListener('keydown', handleKeyDownEscape);
-    return () => window.removeEventListener('keydown', handleKeyDownEscape);
-  }, []);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTool]);
 
   useEffect(() => {
-    [wallToolRef, roomToolRef, doorToolRef, windowToolRef].forEach(ref => {
+    [
+      wallToolRef,
+      roomToolRef,
+      doorToolRef,
+      windowToolRef,
+      measurementRulerToolRef,
+      calibrationRulerToolRef,
+    ].forEach(ref => {
       if (ref.current) { ref.current.deactivate(); ref.current = null; }
     });
     setSnapResult(null); FloorPlanSnapHook.clear();
@@ -583,6 +625,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     else if (currentTool === 'room') { roomToolRef.current = new RoomTool(); roomToolRef.current.activate(); }
     else if (currentTool === 'door') { doorToolRef.current = new DoorTool(); doorToolRef.current.activate(); }
     else if (currentTool === 'window') { windowToolRef.current = new WindowTool(); windowToolRef.current.activate(); }
+    else if (currentTool === 'measure') {
+      measurementRulerToolRef.current = new MeasurementRulerTool();
+      measurementRulerToolRef.current.activate();
+    }
+    else if (currentTool === 'calibration') {
+      calibrationRulerToolRef.current = new CalibrationRulerTool();
+      calibrationRulerToolRef.current.activate();
+    }
     forceUpdate(prev => prev + 1);
   }, [currentTool]);
 
@@ -640,17 +690,28 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     };
   }, []);
 
-  // ── Source dispatching ────────────────────────────────────────────────
   const dataSource = activeDocumentState || plan;
   const renderPlan: ArchitecturalPlan = usePlanRenderer(dataSource, layers);
 
+  // Viewport exposes BOTH worldToScreen and screenToWorld, and has the
+  // current canvas dimensions baked in. Tools read these per-frame.
   const getViewport = () => {
     const tf = transformRef.current; if (!tf) return null;
     return {
       worldToScreen: (wp: { x: number; y: number }) => {
         const { finalScale, yScale, centerX, centerY, width, height, offsetX, offsetY } = tf;
-        return { x: width / 2 + offsetX + (wp.x - centerX) * finalScale, y: height / 2 + offsetY + (wp.y - centerY) * yScale };
-      }
+        return {
+          x: width / 2 + offsetX + (wp.x - centerX) * finalScale,
+          y: height / 2 + offsetY + (wp.y - centerY) * yScale,
+        };
+      },
+      screenToWorld: (sp: { x: number; y: number }) => {
+        const { finalScale, yScale, centerX, centerY, width, height, offsetX, offsetY } = tf;
+        return {
+          x: (sp.x - width / 2 - offsetX) / finalScale + centerX,
+          y: (sp.y - height / 2 - offsetY) / yScale + centerY,
+        };
+      },
     };
   };
 
@@ -659,30 +720,32 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     if (currentTool === 'room') return roomToolRef.current;
     if (currentTool === 'door') return doorToolRef.current;
     if (currentTool === 'window') return windowToolRef.current;
+    if (currentTool === 'measure') return measurementRulerToolRef.current;
+    if (currentTool === 'calibration') return calibrationRulerToolRef.current;
     return null;
   };
+
+  const isGeometryTool =
+    currentTool === 'wall' ||
+    currentTool === 'room' ||
+    currentTool === 'door' ||
+    currentTool === 'window';
+  const isOverlayTool =
+    currentTool === 'measure' || currentTool === 'calibration';
+  const isDrawingTool = isGeometryTool || isOverlayTool;
 
   const cursorStyle: string = useMemo(() => {
     if (isMiddlePanningRef.current || isSpacePanningRef.current || isPanModePanningRef.current) return 'grabbing';
     if (panMode || isSpaceDown) return 'grab';
     if (isPanning) return 'grabbing';
 
-    // Read-only: no crosshair, no pointer. Default cursor communicates
-    // "view only".
     if (isReadOnly) return 'default';
-
-    const isDrawingTool =
-      currentTool === 'wall' ||
-      currentTool === 'room' ||
-      currentTool === 'door' ||
-      currentTool === 'window';
 
     if (isDrawingTool) return 'crosshair';
     if (currentTool === 'select' && hoveredId) return 'pointer';
     return currentTool === 'select' ? 'crosshair' : 'grab';
-  }, [currentTool, isPanning, hoveredId, isSpaceDown, panMode, isReadOnly]);
+  }, [currentTool, isPanning, hoveredId, isSpaceDown, panMode, isReadOnly, isDrawingTool]);
 
-  // ── Canvas render effect ──────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -947,6 +1010,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
             (activeToolInstance as any).viewport = viewport;
             (activeToolInstance as any).context = { viewport };
           }
+          // Live document injection — CalibrationRulerTool uses this for
+          // endpoint snapping (snap wins if available, else raw click).
+          (activeToolInstance as any).__document = renderPlan;
           if (typeof activeToolInstance.renderOverlay === 'function') {
             activeToolInstance.renderOverlay(ctx);
           }
@@ -959,13 +1025,91 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
           SnapService.renderSnapIndicator(ctx, snapResult.point, snapResult.type, viewport);
         }
       }
+
+      {
+        const lm = LayerManager.getInstance();
+
+        lm.applyVisibility(
+          {
+            calibration: layers.calibration !== false,
+            preview: layers.preview !== false,
+          },
+          {
+            calibration: 'calibration',
+            preview: 'preview',
+          }
+        );
+
+        const calLayer: any = lm.findLayer('calibration');
+        if (calLayer && typeof calLayer.update === 'function') {
+          calLayer.update({
+            ...(calibrationState || { p1: null, p2: null, knownDistance: null, unit: 'mm', pxPerUnit: null }),
+            cursor: null,
+          });
+        }
+
+        const prevLayer: any = lm.findLayer('preview');
+        if (prevLayer && typeof prevLayer.update === 'function') {
+          prevLayer.update({
+            hoveredId: hoveredIdFromRedux ?? hoveredId ?? null,
+            selectionId: selectedId,
+            multiSelection: multiSelection || [],
+          });
+        }
+
+        const viewportLike = {
+          zoom: scale,
+          offsetX: offset.x,
+          offsetY: offset.y,
+          worldToScreen: (p: { x: number; y: number }) => ({
+            x: canvas.width / 2 + offset.x + (p.x - centerX) * finalTotalScale,
+            y: canvas.height / 2 + offset.y + (p.y - centerY) * yScale,
+          }),
+          screenToWorld: (p: { x: number; y: number }) => ({
+            x: (p.x - canvas.width / 2 - offset.x) / finalTotalScale + centerX,
+            y: (p.y - canvas.height / 2 - offset.y) / yScale + centerY,
+          }),
+        };
+
+        const docLike: any = {
+          getElements: () => (renderPlan as any).elements || [],
+          getWalls: () => (renderPlan as any).walls || [],
+          getRooms: () => (renderPlan as any).rooms || [],
+          getDoors: () => (renderPlan as any).doors || [],
+          getWindows: () => (renderPlan as any).windows || [],
+          getImportedDrawings: () => (renderPlan as any).importedDrawings || [],
+        };
+
+        const rc = new RenderContext(docLike, viewportLike);
+
+        ctx.save();
+        ctx.translate(canvas.width / 2 + offset.x, canvas.height / 2 + offset.y);
+        ctx.scale(finalTotalScale, yScale);
+        ctx.translate(-centerX, -centerY);
+
+        for (const layer of lm.getRenderLayers()) {
+          const id = layer.getId();
+          if (id !== 'calibration' && id !== 'preview') continue;
+          try {
+            layer.render(ctx, rc);
+          } catch (e) {
+            console.warn(`[FloorPlanCanvas] layer '${id}' render failed`, e);
+          }
+        }
+
+        ctx.restore();
+      }
     });
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [renderPlan, scale, offset, selection, multiSelection, currentTool, layers, snapResult, hoveredId, dragTick]);
+  }, [
+    renderPlan, scale, offset, selection, multiSelection, currentTool, layers,
+    snapResult, hoveredId, dragTick,
+    calibrationState, hoveredIdFromRedux,
+  ]);
 
   const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -977,12 +1121,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     const rawWorldX = (screenX - tf.width / 2 - tf.offsetX) / tf.finalScale + tf.centerX;
     const rawWorldY = (screenY - tf.height / 2 - tf.offsetY) / tf.yScale + tf.centerY;
 
-    // ── Right-click → ignored (reserved for future context menu) ──
     if (e.button === MOUSE_RIGHT) {
       return;
     }
 
-    // ── Middle-drag → pan (CAD convention) ────────────────────────
     if (e.button === MOUSE_MIDDLE) {
       e.preventDefault();
       isMiddlePanningRef.current = true;
@@ -990,7 +1132,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       return;
     }
 
-    // ── Space + left → pan (2D-tool convention) ───────────────────
     if (e.button === MOUSE_LEFT && isSpaceDown) {
       e.preventDefault();
       isSpacePanningRef.current = true;
@@ -998,7 +1139,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       return;
     }
 
-    // ── Hand tool active → left-drag pans, no tool/select logic ──
     if (e.button === MOUSE_LEFT && panMode) {
       e.preventDefault();
       isPanModePanningRef.current = true;
@@ -1006,13 +1146,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       return;
     }
 
-    // ── READ-ONLY: block all remaining left-click edit paths ──────
-    // Pan already handled above; marquee, draw, drag all rejected.
     if (isReadOnly) {
       return;
     }
 
-    // Below here: left-click only (right/middle already returned).
     if (e.button !== MOUSE_LEFT) return;
 
     if (currentTool === 'select' && !isPanning) {
@@ -1024,7 +1161,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       return;
     }
 
-    if (isPanning || (currentTool !== 'wall' && currentTool !== 'room' && currentTool !== 'door' && currentTool !== 'window')) {
+    if (isPanning || !isDrawingTool) {
       return;
     }
 
@@ -1081,7 +1218,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     const rawWorldX = (screenX - tf.width / 2 - tf.offsetX) / tf.finalScale + tf.centerX;
     const rawWorldY = (screenY - tf.height / 2 - tf.offsetY) / tf.yScale + tf.centerY;
 
-    // ── READ-ONLY: skip hover + tool-move entirely ────────────────
     if (isReadOnly) {
       if (hoveredId !== null) setHoveredId(null);
       return;
@@ -1119,7 +1255,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
 
     if (hoveredId !== null) setHoveredId(null);
 
-    if (isPanning || (currentTool !== 'wall' && currentTool !== 'room' && currentTool !== 'door' && currentTool !== 'window')) return;
+    if (isPanning || !isDrawingTool) return;
 
     let finalWorld = { x: rawWorldX, y: rawWorldY };
     let snap: SnapResult | null = null;
@@ -1278,13 +1414,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Read-only: block drawing-tool double-click commits. Zoom-to-element
-    // still works (that's viewing, not editing).
     if (isReadOnly && (currentTool === 'wall' || currentTool === 'room' || currentTool === 'door' || currentTool === 'window')) {
       return;
     }
 
-    // Drawing tools: existing onDoubleClick behavior (commit shape).
     if (currentTool === 'wall' || currentTool === 'room' || currentTool === 'door' || currentTool === 'window') {
       const activeToolInstance = getActiveToolInstance();
       if (!activeToolInstance || typeof (activeToolInstance as any).onDoubleClick !== 'function') return;
@@ -1300,8 +1433,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       return;
     }
 
-    // Select tool: double-click element → zoom-to-element.
-    // (Allowed in read-only — viewing the plan is fine.)
     if (currentTool !== 'select') return;
     const rect = canvasRef.current?.getBoundingClientRect();
     const tf = transformRef.current;

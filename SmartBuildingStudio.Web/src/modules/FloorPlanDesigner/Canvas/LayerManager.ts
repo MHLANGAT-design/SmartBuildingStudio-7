@@ -1,4 +1,4 @@
-// src/modules/FloorPlanDesigner/Canvas/Layers/LayerManager.ts
+// src/modules/FloorPlanDesigner/Canvas/LayerManager.ts
 import { IRenderLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/IRenderLayer";
 
 import { GridLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/GridLayer";
@@ -7,6 +7,11 @@ import { WallLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/WallLayer";
 import { DoorLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/DoorLayer";
 import { WindowLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/WindowLayer";
 import { RoomLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/RoomLayer";
+
+// ── ADDED ── new overlays (live under ./Layers/)
+import { CalibrationLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/CalibrationLayer";
+import { MeasurementLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/MeasurementLayer";
+import { PreviewLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/PreviewLayer";
 
 import { CoordinateHudLayer } from "@/modules/FloorPlanDesigner/Canvas/Layers/CoordinateHudLayer";
 
@@ -35,6 +40,12 @@ export class LayerManager {
     this.registerLayer(new DoorLayer(), 20);
     this.registerLayer(new WindowLayer(), 30);
     this.registerLayer(new RoomLayer(), 40);
+
+    // ── ADDED ── new overlay layers
+    this.registerLayer(new CalibrationLayer(), 500);
+    this.registerLayer(new MeasurementLayer(), 510);
+    this.registerLayer(new PreviewLayer(), 520);
+
     this.registerLayer(new CoordinateHudLayer(), 999);
   }
 
@@ -70,9 +81,9 @@ export class LayerManager {
    * Apply visibility to registered layers from a keyed map.
    *
    * `visibilityByPanelId` is keyed by the LayerExplorer row ids
-   * (walls, doors, grid, imported, …). `deckIdToPanelId` translates
-   * each layer's own getId() into that vocabulary; layers whose deck
-   * id has no entry are left alone.
+   * (walls, doors, grid, calibration, measurements, preview, …).
+   * `deckIdToPanelId` translates each layer's own getId() into that
+   * vocabulary; layers whose deck id has no entry are left alone.
    *
    * Idempotent: a layer already in the target state is not touched, so
    * the panel's immediate write and the canvas's rehydration echo do

@@ -7,23 +7,18 @@
 //   2. Redux setLayerVisibility — load-time authority; canvas echoes back
 //   3. __hiddenLayersMap — fallback channel for layers that read it
 //
-// The "Imported Drawings" row was removed because its backing layer
-// (ImportedDrawingLayer) reads a data shape the backend DTO does not
-// provide — the C# ImportedDrawingDto is a reference table for
-// attached drawing files, not a container of vector geometry. The
-// layer rendered nothing on every document shape we've seen, and a
-// toggle that controls nothing is worse UX than no toggle. If a
-// future feature needs a raw-CAD-underlay toggle, the existing
-// "rawgeometry" row already serves that purpose via CanvasRenderer
-// phase 5's __hiddenLayersMap gate.
+// ── ADDED ── calibration, measurements, preview, selection, snap rows.
+// These are overlays painted by LayerManager (CalibrationLayer,
+// MeasurementLayer, PreviewLayer) or by CanvasRenderer (selection /
+// snap indicators). Toggling the row gates the corresponding layer via
+// LayerManager.applyVisibility and via the canvas's `layers.*` checks.
 //
-// Row counts: for walls / doors / windows / rooms, the panel shows the
-// grouped semantic count (document.doors.length etc.) when the DXF
-// import has run through the grouping pipeline. Falls back to element
-// counts for documents imported before grouping existed. See
-// semanticCounts.countSemantic.
+// The "Imported Drawings" row is still absent: the backing layer reads
+// a data shape the backend DTO does not provide (see the original note
+// above). If a future feature needs an underlay toggle, add it back here
+// and register an ImportedDrawingLayer deck-id mapping below.
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAppSelector, useAppDispatch } from "@/Application/ConfigureStore";
 import {
   markDirty,
@@ -43,6 +38,8 @@ interface Layer {
 
 /**
  * Maps the panel's layer IDs to the Redux `LayerVisibilityState` keys.
+ * Every row's id MUST exist as a key in `LayerVisibilityState`, or the
+ * panel toggle will be ignored by the slice.
  */
 const LAYER_ID_TO_REDUX_KEY: Record<string, string> = {
   walls: 'walls',
@@ -52,10 +49,17 @@ const LAYER_ID_TO_REDUX_KEY: Record<string, string> = {
   rawgeometry: 'rawgeometry',
   fixtures: 'fixtures',
   grid: 'grid',
+  // ── ADDED ──
+  calibration: 'calibration',
+  measurements: 'measurements',
+  preview: 'preview',
+  selection: 'selection',
+  snap: 'snap',
 };
 
 /**
  * Maps the panel's layer IDs to the aliases used in __hiddenLayersMap.
+ * CanvasRenderer.isLayerVisible reads this map for its own gates.
  */
 const LAYER_ID_TO_HIDDEN_ALIASES: Record<string, string[]> = {
   walls: ['walls', 'wall'],
@@ -65,39 +69,53 @@ const LAYER_ID_TO_HIDDEN_ALIASES: Record<string, string[]> = {
   rawgeometry: ['rawgeometry'],
   fixtures: ['fixtures', 'fixture'],
   grid: ['grid'],
+  // ── ADDED ──
+  calibration: ['calibration'],
+  measurements: ['measurements'],
+  preview: ['preview'],
+  selection: ['selection'],
+  snap: ['snap'],
 };
 
 /**
  * Deck ids (IRenderLayer.getId()) → panel ids.
+ * If a layer's deck id is not listed here, applyVisibility is a no-op
+ * for it, and the toggle only affects Redux + __hiddenLayersMap.
  */
 const DECK_ID_TO_PANEL_ID: Record<string, string> = {
-  'grid-layer': 'grid',
-  'walls':      'walls',
-  'doors':      'doors',
-  'windows':    'windows',
-  'rooms':      'rooms',
+  'grid':        'grid',
+  'walls':       'walls',
+  'doors':       'doors',
+  'windows':     'windows',
+  'rooms':       'rooms',
+  // ── ADDED ──
+  'calibration': 'calibration',
+  'measurements': 'measurements',
+  'preview':     'preview',
 };
 
 const DEFAULT_LAYERS: Layer[] = [
-  { id: "walls",       name: "Walls",               visible: true,  locked: false, order: 0 },
-  { id: "doors",       name: "Doors",               visible: true,  locked: false, order: 1 },
-  { id: "windows",     name: "Windows",             visible: true,  locked: false, order: 2 },
-  { id: "rooms",       name: "Rooms",               visible: true,  locked: false, order: 3 },
-  { id: "rawgeometry", name: "Raw CAD Geometry",    visible: false, locked: false, order: 4 },
-  { id: "fixtures",    name: "Electrical Fixtures", visible: true,  locked: false, order: 5 },
-  { id: "grid",        name: "Grid",                visible: true,  locked: false, order: 6 },
+  // ── Geometry ─────────────────────────────────────────────────────
+  { id: "walls",         name: "Walls",                visible: true,  locked: false, order: 0 },
+  { id: "doors",         name: "Doors",                visible: true,  locked: false, order: 1 },
+  { id: "windows",       name: "Windows",              visible: true,  locked: false, order: 2 },
+  { id: "rooms",         name: "Rooms",                visible: true,  locked: false, order: 3 },
+  { id: "rawgeometry",   name: "Raw CAD Geometry",     visible: false, locked: false, order: 4 },
+  { id: "fixtures",      name: "Electrical Fixtures",  visible: true,  locked: false, order: 5 },
+  // ── ADDED ── Annotations ─────────────────────────────────────────
+  { id: "calibration",   name: "Calibration",          visible: true,  locked: false, order: 6 },
+  { id: "measurements",  name: "Measurements",         visible: true,  locked: false, order: 7 },
+  { id: "preview",       name: "Selection Preview",    visible: true,  locked: false, order: 8 },
+  { id: "selection",     name: "Selection Outline",    visible: true,  locked: false, order: 9 },
+  { id: "snap",          name: "Snap Indicators",      visible: true,  locked: false, order: 10 },
+  // ── Canvas chrome ────────────────────────────────────────────────
+  { id: "grid",          name: "Grid",                 visible: true,  locked: false, order: 11 },
 ];
 
 /**
  * Classifies a raw element's type into the panel's layer buckets.
- *
- * IMPORTANT: `type === 'rawgeometry'` must be checked BEFORE the wall
- * fallback, otherwise the C# ElementType.RawGeometry elements (which
- * arrive lowercased on `document.elements`) get counted as walls.
- *
- * The final fallback is `null` rather than `'walls'`. If something lands
- * here, it's genuinely unclassified and should be visible as such rather
- * than silently inflating the wall count.
+ * `type === 'rawgeometry'` is checked BEFORE the wall fallback, otherwise
+ * the C# ElementType.RawGeometry elements get counted as walls.
  */
 function classifyElementLayer(el: any): string | null {
   if (!el) return null;
@@ -142,12 +160,28 @@ export function LayerExplorer() {
 
   const [layers, setLayers] = useState<Layer[]>(DEFAULT_LAYERS);
 
-  const deck = React.useMemo(() => LayerManager.getInstance(), []);
+  const deck = useMemo(() => LayerManager.getInstance(), []);
 
   // ── Hydrate from document.layers if present (persisted), else defaults ──
   useEffect(() => {
     if (document.layers && Array.isArray(document.layers) && document.layers.length > 0) {
-      setLayers(document.layers);
+      // Merge persisted rows onto the current default row set so new rows
+      // (calibration, measurements, preview, …) still appear even for old
+      // documents that only persisted the original 7.
+      const persistedById = new Map<string, Layer>(
+        (document.layers as Layer[]).map((l) => [l.id, l])
+      );
+      const merged: Layer[] = DEFAULT_LAYERS.map((d) => {
+        const p = persistedById.get(d.id);
+        return p
+          ? { ...d, visible: p.visible, locked: p.locked, order: p.order ?? d.order }
+          : d;
+      });
+      // Append any persisted rows we don't have a default for.
+      for (const p of document.layers as Layer[]) {
+        if (!merged.find((m) => m.id === p.id)) merged.push(p);
+      }
+      setLayers(merged);
     }
   }, [document.layers]);
 
@@ -205,8 +239,7 @@ export function LayerExplorer() {
 
     (window as any).__hiddenLayersMap = hiddenMap;
 
-    // Mirror into the global doc for persistence/debug.
-    // Copy-on-write — the Redux object is frozen.
+    // Mirror into the global doc for persistence/debug. Copy-on-write.
     const globalDoc = (window as any).__floorPlanActiveDocumentInstance;
     if (globalDoc && typeof globalDoc === "object") {
       (window as any).__floorPlanActiveDocumentInstance = {
@@ -262,12 +295,7 @@ export function LayerExplorer() {
     syncLayerVisibility(updatedLayers);
   };
 
-  /**
-   * Element counts — the flat `elements` array tallied by bucket.
-   * Used as the fallback for categories that have a grouped equivalent,
-   * and as the direct count for rawgeometry / fixtures, which don't.
-   */
-  const elementCounts = React.useMemo(() => {
+  const elementCounts = useMemo(() => {
     const elements: any[] = document.elements || [];
     const counts: Record<string, number> = {
       walls: 0,
@@ -288,31 +316,26 @@ export function LayerExplorer() {
     return counts;
   }, [document.elements]);
 
-  /**
-   * Per-row count.
-   *
-   * For walls / doors / windows / rooms, prefer the grouped semantic
-   * collections when they exist. A door drawn as 5 segments should
-   * show as 1 door, not 5. Falls back to element counts for documents
-   * imported before grouping existed.
-   *
-   * `rawgeometry` and `fixtures` have no grouped equivalent — they
-   * count elements directly.
-   *
-   * `grid` returns -1 as a sentinel meaning "not countable" — the grid
-   * is infinite, and a literal 0 next to a layer that is actively
-   * painting gridlines reads as a lie.
-   */
+  // Overlay rows have no "element" to count from the document — they
+  // count from their own state slices.
+  const measurementCount = floorPlanState?.measurements?.committed?.length ?? 0;
+  const calibrationActive = floorPlanState?.calibration?.pxPerUnit ? 1 : 0;
+
   const getLayerCount = (layerId: string): number => {
     switch (layerId) {
-      case "walls":       return countSemantic(document.walls, elementCounts.walls);
-      case "doors":       return countSemantic(document.doors, elementCounts.doors);
-      case "windows":     return countSemantic(document.windows, elementCounts.windows);
-      case "rooms":       return countSemantic(document.rooms, elementCounts.rooms);
-      case "rawgeometry": return elementCounts.rawgeometry;
-      case "fixtures":    return elementCounts.fixtures;
-      case "grid":        return -1;
-      default:            return 0;
+      case "walls":        return countSemantic(document.walls, elementCounts.walls);
+      case "doors":        return countSemantic(document.doors, elementCounts.doors);
+      case "windows":      return countSemantic(document.windows, elementCounts.windows);
+      case "rooms":        return countSemantic(document.rooms, elementCounts.rooms);
+      case "rawgeometry":  return elementCounts.rawgeometry;
+      case "fixtures":     return elementCounts.fixtures;
+      case "measurements": return measurementCount;
+      case "calibration":  return calibrationActive;
+      case "preview":      return -1;
+      case "selection":    return -1;
+      case "snap":         return -1;
+      case "grid":         return -1;
+      default:             return 0;
     }
   };
 

@@ -3,21 +3,24 @@ import React, { useState, useEffect } from "react";
 interface CalibrationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (realWorldDistanceMeters: number) => void;
+  onConfirm: (realWorldDistanceMm: number) => void;
   pixelDistance?: number;
 }
 
-export default function CalibrationDialog({ 
-  isOpen: propIsOpen, 
-  onClose: propOnClose, 
-  onConfirm: propOnConfirm, 
-  pixelDistance: propPixelDistance = 0 
+export default function CalibrationDialog({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  onConfirm: propOnConfirm,
+  pixelDistance: propPixelDistance = 0,
 }: CalibrationDialogProps) {
-  
-  // 🚀 FIXED: Injected local state anchors to catch cross-module tool triggers autonomously!
+  // Injected local state anchors to catch cross-module tool triggers
+  // autonomously (the calibration tool fires `sbs:calibration-complete`
+  // on the second click; the listener below opens the modal).
   const [localIsOpen, setLocalIsOpen] = useState(false);
   const [localPixelDistance, setLocalPixelDistance] = useState(0);
-  const [distance, setDistance] = useState<string>("5.0");
+  // Default suggestion: 5000 mm (~5 m) — matches typical wall spans and
+  // gives a comfortable starting number for a first calibration.
+  const [distance, setDistance] = useState<string>("5000");
 
   // Synchronize with parent props if they happen to change state correctly
   useEffect(() => {
@@ -28,14 +31,15 @@ export default function CalibrationDialog({
     if (propPixelDistance > 0) setLocalPixelDistance(propPixelDistance);
   }, [propPixelDistance]);
 
-  // 🚀 FIXED: Global Event Interceptor listening for Calibration tool mouse completions!
+  // Global event interceptor — the calibration tool fires this on its
+  // second click, carrying the pixel distance for display.
   useEffect(() => {
     const handleTriggerCalibrationPrompt = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (!customEvent.detail) return;
-      
+
       const pixels = customEvent.detail.pixelDistance || customEvent.detail.pixels || 0;
-      
+
       setLocalPixelDistance(pixels);
       setLocalIsOpen(true);
     };
@@ -58,8 +62,14 @@ export default function CalibrationDialog({
       if (typeof propOnConfirm === "function") {
         propOnConfirm(parsed);
       } else {
-        // Fallback pipeline trigger forcing canvas workspace model scale mutations natively
-        window.dispatchEvent(new CustomEvent("sbs:apply-calibration-scale", { detail: { meters: parsed, pixels: localPixelDistance } }));
+        // Fallback pipeline trigger — the app-level handler (mounted in
+        // FloorPlanDesigner) dispatches setCalibrationDistance with
+        // unit "mm" against this parsed value.
+        window.dispatchEvent(
+          new CustomEvent("sbs:apply-calibration-scale", {
+            detail: { mm: parsed, pixels: localPixelDistance },
+          })
+        );
       }
       setLocalIsOpen(false);
     }
@@ -67,7 +77,10 @@ export default function CalibrationDialog({
 
   if (!localIsOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm select-none">
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm select-none"
+      style={{ zIndex: 5000 }}
+    >
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden text-slate-200">
         <div className="px-5 py-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
           <h3 className="text-sm font-semibold tracking-wide text-white uppercase flex items-center gap-2">
@@ -83,19 +96,19 @@ export default function CalibrationDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-400 block">Real-World Distance (Metres)</label>
+            <label className="text-xs font-medium text-slate-400 block">Real-World Distance (Millimetres)</label>
             <div className="relative">
               <input
                 type="number"
-                step="0.001"
-                min="0.001"
+                step="1"
+                min="1"
                 value={distance}
                 onChange={(e) => setDistance(e.target.value)}
-                placeholder="e.g., 12.5"
+                placeholder="e.g., 5000"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono transition-colors"
                 autoFocus
               />
-              <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">m</span>
+              <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">mm</span>
             </div>
           </div>
 

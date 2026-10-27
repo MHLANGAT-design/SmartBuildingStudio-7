@@ -6,6 +6,12 @@
 // is responsible for disabling its own edit buttons when isReadOnly
 // is true. Pan/zoom/select controls are NOT in this toolbar (they live
 // in GlobalZoomControl), so read-only mode doesn't affect them.
+//
+// ── ADDED ──
+//   MeasureCalibrateGroup renders in the "Canvas View" (utility) tab.
+//   It provides the only entry points to the calibration + measurement
+//   tools: buttons that dispatch setActiveTool('calibration' | 'measure')
+//   so FloorPlanCanvas instantiates CalibrationRulerTool / MeasurementRulerTool.
 
 import React, { useState } from "react";
 import { FloorPlanApi } from "@/modules/FloorPlanDesigner/Services/FloorPlanApi";
@@ -14,6 +20,8 @@ import { DocumentManager } from "@/modules/FloorPlanDesigner/Document/DocumentMa
 import { FileGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/FileGroup";
 import { EditGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/EditGroup";
 import { ValidateGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/ValidateGroup";
+// ── ADDED ──
+import { MeasureCalibrateGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/MeasureCalibrateGroup";
 
 export interface FloorPlanToolbarProps {
   api: FloorPlanApi;
@@ -68,7 +76,7 @@ export const FloorPlanToolbar = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveSection(tab.id)}
+              onClick={() => setActiveSection(tab.id as "draw" | "file" | "utility")}
               style={{
                 background:
                   activeSection === tab.id
@@ -176,10 +184,10 @@ export const FloorPlanToolbar = ({
           </div>
         )}
 
-        {/* UTILITY – now empty because ViewGroup was removed */}
+        {/* UTILITY — calibration + measurement entry points */}
         {activeSection === "utility" && (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* ViewGroup removed – you can add other utility buttons here later */}
+            <MeasureCalibrateGroup isReadOnly={isReadOnly} />
           </div>
         )}
       </div>
