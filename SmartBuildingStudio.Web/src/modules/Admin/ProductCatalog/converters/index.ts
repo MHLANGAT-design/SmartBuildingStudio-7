@@ -4,17 +4,14 @@
 // to look up the right converter based on the manufacturer + file
 // format selected by the user.
 //
-// To add a new manufacturer: add an entry to CONVERTERS and export the
-// converter from its own file. No other change is needed — the UI
-// dropdowns are generated from this registry.
-//
-// Note on Osram: there are two distinct product shapes (drivers and
-// luminaires), each with its own converter. The automotive lighting
-// shape (headlight lamps) is intentionally not registered — that
-// product category is out of scope for this catalog.
+// Philips is split into philips (JSON) and philips-csv (CSV) so the
+// user picks the shape they're uploading. Tridonic follows the same
+// pattern: tridonic (JSON) and tridonic-csv (CSV). No change is needed
+// in the import dialog — its dropdown is generated from this array.
 
 import type { ConvertResult } from "./normalizeProduct";
 import { convertTridonic } from "./tridonic";
+import { convertTridonicCsv } from "./tridonic-csv";
 import { convertPhilips } from "./philips";
 import { convertPhilipsCsv } from "./philips-csv";
 import { convertOsramDriver } from "./osram-driver";
@@ -23,24 +20,25 @@ import { convertOsramLuminaire } from "./osram-luminaire";
 export type FileFormat = "json" | "csv";
 
 export interface ConverterEntry {
-  /** Stable identifier used in URLs, localStorage, and dropdowns. */
   id: string;
-  /** Human-readable display name for the dropdown. */
   label: string;
-  /** Which file formats this manufacturer supports. */
   formats: FileFormat[];
-  /** The conversion function for JSON format (if supported). */
   convertJson?: (raw: unknown[]) => ConvertResult;
-  /** The conversion function for CSV format (if supported). */
   convertCsv?: (raw: unknown[]) => ConvertResult;
 }
 
 export const CONVERTERS: ConverterEntry[] = [
   {
     id: "tridonic",
-    label: "Tridonic",
+    label: "Tridonic (JSON)",
     formats: ["json"],
     convertJson: (raw) => convertTridonic(raw as any[]),
+  },
+  {
+    id: "tridonic-csv",
+    label: "Tridonic (CSV)",
+    formats: ["csv"],
+    convertCsv: (raw) => convertTridonicCsv(raw as any[]),
   },
   {
     id: "philips",

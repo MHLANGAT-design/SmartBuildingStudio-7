@@ -2,9 +2,9 @@
 //
 // Philips CSV export → NormalizedProduct[].
 //
-// Parses wattage ("40W"), output current ("0.1-1.1A" → min/max A), and
-// output voltage ("54V DC") to canonical units. Currents are stored as
-// milliamps for consistency with the other converters.
+// Guards every parse* helper against undefined / non-string input so
+// that feeding this converter the wrong CSV shape (e.g. a Tridonic
+// catalog) skips rows instead of crashing on s.match(...).
 
 import {
   ConvertResult,
@@ -23,22 +23,30 @@ export interface PhilipsCsvRow {
   Application: string;
 }
 
-function parseWattage(s: string): number {
-  const m = s.match(/(\d+(?:\.\d+)?)/);
+function asString(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function parseWattage(s: unknown): number {
+  const str = asString(s);
+  const m = str.match(/(\d+(?:\.\d+)?)/);
   return m ? parseFloat(m[1]) : 0;
 }
 
-function parseVoltage(s: string): number {
-  const m = s.match(/(\d+(?:\.\d+)?)/);
+function parseVoltage(s: unknown): number {
+  const str = asString(s);
+  const m = str.match(/(\d+(?:\.\d+)?)/);
   return m ? parseFloat(m[1]) : 0;
 }
 
-function parseCurrentRange(s: string): { minA: number; maxA: number } | null {
-  const rangeMatch = s.match(/([\d.]+)\s*-\s*([\d.]+)/);
+function parseCurrentRange(s: unknown): { minA: number; maxA: number } | null {
+  const str = asString(s);
+  if (!str) return null;
+  const rangeMatch = str.match(/([\d.]+)\s*-\s*([\d.]+)/);
   if (rangeMatch) {
     return { minA: parseFloat(rangeMatch[1]), maxA: parseFloat(rangeMatch[2]) };
   }
-  const singleMatch = s.match(/([\d.]+)/);
+  const singleMatch = str.match(/([\d.]+)/);
   if (singleMatch) {
     const v = parseFloat(singleMatch[1]);
     return { minA: v, maxA: v };
@@ -46,12 +54,19 @@ function parseCurrentRange(s: string): { minA: number; maxA: number } | null {
   return null;
 }
 
+function extractDaliGeneration(protocol: unknown): string {
+  const str = asString(protocol);
+  if (/dali\s*2/i.test(str)) return "DALI-2";
+  if (/dali/i.test(str)) return "DALI";
+  return "unknown";
+}
+
 export function convertPhilipsCsv(raw: PhilipsCsvRow[]): ConvertResult {
   const products: NormalizedProduct[] = [];
   const skipped: ConvertResult["skipped"] = [];
 
   for (const r of raw) {
-    const current = parseCurrentRange(r.Output_Current ?? "");
+    const current = parseCurrentRange(r.Output_Current);
 
     const product: NormalizedProduct = {
       productCode: r.Product_ID,
@@ -86,10 +101,4 @@ export function convertPhilipsCsv(raw: PhilipsCsvRow[]): ConvertResult {
   }
 
   return { products, skipped };
-}
-
-function extractDaliGeneration(protocol: string): string {
-  if (/dali\s*2/i.test(protocol)) return "DALI-2";
-  if (/dali/i.test(protocol)) return "DALI";
-  return "unknown";
 }
