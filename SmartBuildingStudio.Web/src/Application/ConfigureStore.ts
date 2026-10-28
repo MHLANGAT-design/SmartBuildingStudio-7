@@ -1,4 +1,5 @@
 // src/Application/ConfigureStore.ts
+
 import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector, TypedUseSelectorHook } from "react-redux";
 import { enableMapSet } from "immer";
@@ -9,6 +10,7 @@ import ProjectExplorerReducer from "@/modules/ProjectExplorer/Store/ProjectExplo
 import FixtureReducer from "@/modules/FixturePlacementStudio/store/fixtureSlice";
 import { daliReducer } from "@/modules/DaliDesigner/store/daliSlice";
 import { emergencyReducer } from "@/modules/EmergencyLighting/store/emergencySlice";
+import documentVersionReducer from "@/modules/Shared/DocumentVersion/documentVersionSlice";
 import { fixtureHistoryMiddleware } from "@/modules/FixturePlacementStudio/store/fixtureHistoryMiddleware";
 
 import { ApplicationServices } from "@/Application/ApplicationServices";
@@ -37,7 +39,13 @@ const servicesContainer: ApplicationServices = {
   projectExplorerApi: projectExplorerApiInstance,
 };
 
-export const store = configureStore({
+// Explicit `: any` breaks the circular type inference that would
+// otherwise occur once the reducer map includes a reducer whose types
+// (transitively) reference RootState. Inferred types here would be
+// `store → reducers → RootState → store`, which TypeScript rejects.
+// The `RootState` alias below still produces the correct concrete type
+// for consumers; only the intermediate inference is bypassed.
+export const store: any = configureStore({
   reducer: {
     floorPlan: FloorPlanReducer,
     dashboard: DashboardReducer,
@@ -45,8 +53,9 @@ export const store = configureStore({
     fixture: FixtureReducer,
     dali: daliReducer,
     emergency: emergencyReducer,
+    documentVersion: documentVersionReducer,
   },
-  middleware: (getDefaultMiddleware) =>
+  middleware: (getDefaultMiddleware: any) =>
     getDefaultMiddleware({
       thunk: { extraArgument: { services: servicesContainer } },
       serializableCheck: false,

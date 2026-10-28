@@ -11,8 +11,8 @@ const MAX_GAP_CHECK_MM = 3000;
 const COLLINEAR_ANGLE_TOL = 5 * Math.PI / 180;
 
 // ── Visibility thresholds ───────────────────────────────────────
-const EDGE_MARGIN_MM = 500;         // cells within 500mm of a wall are excluded
-const MIN_EGRESS_LUX = 1.0;         // BS 5266 / EN 1838 minimum at floor
+const EDGE_MARGIN_MM = 500;
+const MIN_EGRESS_LUX = 1.0;
 
 function isEmergencyFixture(f: any): boolean {
   if (!f) return false;
@@ -58,8 +58,11 @@ function fixturePosition(f: any): { x: number; y: number } | null {
   return null;
 }
 
-// ── Segment/geometry helpers ───────────────────────────────────
 interface Seg { a: { x: number; y: number }; b: { x: number; y: number } }
+
+interface TaggedSeg extends Seg {
+  kind: 'wall' | 'window';
+}
 
 function extractSegments(el: any): Seg[] {
   if (!el) return [];
@@ -199,10 +202,6 @@ function gapNeighborDistance(P: { x: number; y: number }, seg: Seg, allWalls: Se
   return bestDist;
 }
 
-// ────────────────────────────────────────────────────────────────
-// ComplianceEngine
-// ────────────────────────────────────────────────────────────────
-
 export class ComplianceEngine {
   static validate(
     doc: EmergencyDocument,
@@ -210,14 +209,13 @@ export class ComplianceEngine {
     heatmapData?: PhotometricData | null,
   ): ComplianceIssue[] {
     const issues: ComplianceIssue[] = [];
-    this.checkFixtureCoverage(doc, floorplanModel, issues);
+    this.checkFixtureCoverage(floorplanModel, issues);
     this.checkEvacuationRoutes(doc, floorplanModel, issues);
     this.checkEmergencyLightingCoverage(floorplanModel, heatmapData ?? null, issues);
     return issues;
   }
 
   private static checkFixtureCoverage(
-    doc: EmergencyDocument,
     floorplanModel: any,
     issues: ComplianceIssue[]
   ) {
@@ -266,43 +264,48 @@ export class ComplianceEngine {
       return;
     }
 
-    const isBarrier = (el: any): boolean => {
-      if (!el) return false;
-      if (el.isRoomBorder === true) return false;
-      if (String(el.id ?? '').startsWith('room-edge-trace-')) return false;
+    const barrierKind = (el: any): 'wall' | 'window' | null => {
+      if (!el) return null;
+      if (el.isRoomBorder === true) return null;
+      if (String(el.id ?? '').startsWith('room-edge-trace-')) return null;
 
       const type = String(el?.type ?? '').toLowerCase();
       const layer = String(el.layer ?? el.originalLayer ?? '').toUpperCase();
 
-      if (type === 'door' || layer === 'DOORS') return false;
-      if (type === 'room' || type === 'fixture') return false;
-      if (layer === 'ROOMS' || layer === 'FIXTURES') return false;
+      if (type === 'door' || layer === 'DOORS') return null;
+      if (type === 'room' || type === 'fixture') return null;
+      if (layer === 'ROOMS' || layer === 'FIXTURES') return null;
 
-      if (type === 'wall' || type === 'window') return true;
-      if (layer === 'WALLS' || layer === 'WINDOWS') return true;
+      if (type === 'wall' || layer === 'WALLS') return 'wall';
+      if (type === 'window' || layer === 'WINDOWS') return 'window';
 
-      return false;
+      return null;
     };
 
     const elements: any[] = Array.isArray(floorplanModel.elements) ? floorplanModel.elements : [];
-    const wallSegments: Seg[] = [];
+    const wallSegments: TaggedSeg[] = [];
     const doorwaySegments: Seg[] = [];
 
     for (const el of elements) {
-      if (isBarrier(el)) {
-        for (const seg of extractSegments(el)) wallSegments.push(seg);
+      const kind = barrierKind(el);
+      if (kind) {
+        for (const seg of extractSegments(el)) {
+          wallSegments.push({ a: seg.a, b: seg.b, kind });
+        }
       } else if (String(el?.type ?? '').toLowerCase() === 'door') {
         const seg = doorOpeningSegment(el);
         if (seg) doorwaySegments.push(seg);
       }
     }
 
+    const rawSegments: Seg[] = wallSegments.map((s) => ({ a: s.a, b: s.b }));
+
     for (const route of routes) {
       const pts = Array.isArray(route.points) && route.points.length >= 2
         ? route.points
         : [route.startNode, route.endNode];
 
-      let blockedByWall: { x: number; y: number } | null = null;
+      let blockedBy: { hit: { x: number; y: number }; kind: 'wall' | 'window' } | null = null;
       outer: for (let i = 1; i < pts.length; i++) {
         const routeSeg: Seg = { a: pts[i - 1], b: pts[i] };
         for (const wallSeg of wallSegments) {
@@ -319,26 +322,27 @@ export class ComplianceEngine {
           const atCorner = distToA < GAP_CORNER_TOLERANCE_MM || distToB < GAP_CORNER_TOLERANCE_MM;
 
           if (atCorner) {
-            const neighborDist = gapNeighborDistance(hit, wallSeg, wallSegments);
+            const neighborDist = gapNeighborDistance(hit, wallSeg, rawSegments);
             if (neighborDist === null) continue;
             if (neighborDist >= MIN_WALKABLE_GAP_MM) continue;
           }
 
-          blockedByWall = hit;
+          blockedBy = { hit, kind: wallSeg.kind };
           break outer;
         }
       }
 
-      if (blockedByWall) {
+      if (blockedBy) {
+        const label = blockedBy.kind === 'window' ? 'a window' : 'a wall';
         issues.push({
           id: `issue-route-wall-${route.id}`,
           ruleId: 'BS5266-8',
           severity: 'error',
           message:
-            `Route "${route.name}" crosses a wall or window at ` +
-            `(${Math.round(blockedByWall.x)}, ${Math.round(blockedByWall.y)}). ` +
+            `Route "${route.name}" crosses ${label} at ` +
+            `(${Math.round(blockedBy.hit.x)}, ${Math.round(blockedBy.hit.y)}). ` +
             `Draw the route through doorways and along corridors.`,
-          location: blockedByWall,
+          location: blockedBy.hit,
         });
       }
 
@@ -366,14 +370,11 @@ export class ComplianceEngine {
     }
   }
 
-  // ── Visibility analysis (item #2) ───────────────────────────────
   private static checkEmergencyLightingCoverage(
     floorplanModel: any,
     heatmapData: PhotometricData | null,
     issues: ComplianceIssue[]
   ) {
-    // Without heatmap data we can't assess illuminance — emit one info
-    // issue telling the user how to enable the check, and stop.
     if (!heatmapData || !Array.isArray(heatmapData.samples) || heatmapData.samples.length === 0) {
       issues.push({
         id: 'issue-visibility-no-heatmap',
@@ -394,11 +395,9 @@ export class ComplianceEngine {
       const poly: Array<{ x: number; y: number }> = room.points || room.vertices || [];
       if (!Array.isArray(poly) || poly.length < 3) continue;
 
-      // Cells strictly inside the room
       const inside = samples.filter((s) => pointInPolygon(s.x, s.y, poly));
       if (inside.length === 0) continue;
 
-      // Walkable = at least EDGE_MARGIN_MM from every room edge
       const walkable = inside.filter((s) => {
         for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
           const d = pointToSegmentDistance(
@@ -412,7 +411,6 @@ export class ComplianceEngine {
 
       if (walkable.length === 0) continue;
 
-      // ── Rule A: egress — any walkable cell below MIN_EGRESS_LUX ──
       const dark = walkable.filter((s) => s.lux < MIN_EGRESS_LUX);
       if (dark.length > 0) {
         issues.push({
@@ -426,7 +424,6 @@ export class ComplianceEngine {
         });
       }
 
-      // ── Rule B: task illuminance — average below room targetLux ──
       const target = Number(room.targetLux ?? room.lux ?? 500);
       if (!Number.isFinite(target) || target <= 0) continue;
 

@@ -1,22 +1,4 @@
 // src/modules/FixturePlacementStudio/Canvas/FixtureCanvas.tsx
-//
-// Pan architecture (standardised with FPD):
-//   • Middle-drag                → pan (CAD convention)
-//   • Space + left-drag          → pan (2D-tool convention)
-//   • Hand tool (GlobalZoomControl) → left-drag pans while active
-//   • Right-click                → ignored (reserved for future context menu)
-//   • Left-click on empty canvas → deselect only, NO pan
-//
-// Zoom surface: registers a ZoomableSurface. Double-click on a
-// fixture → zoomToRect to centre it at ~40% canvas fill.
-//
-// LEVEL 1 LOCK ENFORCEMENT:
-//   When the backend reports isLocked && lockedByUsername !== CURRENT_USER,
-//   the canvas enters read-only mode: pan / zoom only, no fixture
-//   placement, no dragging, no deletion. A yellow banner at the top
-//   tells the user who holds the lock.
-//
-// No render-path changes.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '@/Application/ConfigureStore';
@@ -71,8 +53,6 @@ import { useZoomSurface } from '@/modules/Shared/Zoom/zoomRegistry';
 import type { ZoomableSurface, WorldRect } from '@/modules/Shared/Zoom/zoomSurface';
 import { usePanMode } from '@/modules/Shared/Zoom/panMode';
 
-// ─── Layout constants ────────────────────────────────────────────────────────
-
 const HIT_RADIUS_PX = 12;
 const MIN_BOUNDS_SPAN = 100;
 const DRAG_DEAD_ZONE_PX = 4;
@@ -81,14 +61,12 @@ const MOUSE_LEFT = 0;
 const MOUSE_MIDDLE = 1;
 const MOUSE_RIGHT = 2;
 
-// FPS zoom tuning — must match useFixtureCanvasZoom.ts.
 const ZOOM_STEP = 0.15;
-const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 20;
 
 const DOUBLE_CLICK_ZOOM_FILL = 0.4;
 const DOUBLE_CLICK_ZOOM_MAX = 4;
-const DOUBLE_CLICK_FIXTURE_BOX = 20; // world-unit half-extent around a fixture
+const DOUBLE_CLICK_FIXTURE_BOX = 20;
 
 interface DragState {
   fixtureId: string;
@@ -125,7 +103,6 @@ export const FixtureCanvas: React.FC = () => {
   const { scale, setZoom, handleWheel } = useFixtureCanvasZoom();
   const panMode = usePanMode();
 
-  // ── Lock state (Level 1 enforcement) ─────────────────────────────
   const { isReadOnly, lockedByUsername } = useFixtureLockState();
 
   const layout = useAppSelector(selectLayout);
@@ -141,29 +118,18 @@ export const FixtureCanvas: React.FC = () => {
     [selectedFixtureIds]
   );
 
-  // Pan gesture tracking (mirrors FPD's flags).
   const isMiddlePanningRef = useRef(false);
   const isSpacePanningRef = useRef(false);
   const isPanModePanningRef = useRef(false);
   const [isSpaceDown, setIsSpaceDown] = useState(false);
 
-  // ── Zoom surface registration ─────────────────────────────────────
   const zoomSurface = useMemo<ZoomableSurface>(() => ({
     moduleName: 'Fixture Placement Studio',
     getZoom: () => scale,
-    setZoom: (z: number) => {
-      setZoom(z);
-    },
-    zoomIn: () => {
-      setZoom(scale + ZOOM_STEP);
-    },
-    zoomOut: () => {
-      setZoom(scale - ZOOM_STEP);
-    },
-    fitToContent: () => {
-      setZoom(1);
-      setOffset({ x: 0, y: 0 });
-    },
+    setZoom: (z: number) => { setZoom(z); },
+    zoomIn: () => { setZoom(scale + ZOOM_STEP); },
+    zoomOut: () => { setZoom(scale - ZOOM_STEP); },
+    fitToContent: () => { setZoom(1); setOffset({ x: 0, y: 0 }); },
     zoomToRect: (rect: WorldRect, opts) => {
       const fill = opts?.fill ?? DOUBLE_CLICK_ZOOM_FILL;
       const maxZoom = opts?.maxZoom ?? DOUBLE_CLICK_ZOOM_MAX;
@@ -237,7 +203,6 @@ export const FixtureCanvas: React.FC = () => {
     };
   }, []);
 
-  // ── Keyboard: Space → pan cursor ─────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
@@ -296,7 +261,6 @@ export const FixtureCanvas: React.FC = () => {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Read-only: block Delete / Backspace.
       if (isReadOnly) return;
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const active = document.activeElement as HTMLElement | null;
@@ -342,7 +306,6 @@ export const FixtureCanvas: React.FC = () => {
     return () => canvas.removeEventListener('wheel', handler);
   }, [handleWheel]);
 
-  // ── Render loop ──────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -446,6 +409,7 @@ export const FixtureCanvas: React.FC = () => {
                 doors: true,
                 windows: true,
                 rooms: true,
+                exitRoutes: false,
               },
               selectedId: null,
               hoveredId: null,
@@ -540,7 +504,6 @@ export const FixtureCanvas: React.FC = () => {
     isReadOnly,
   ]);
 
-  // ── Pointer handling ─────────────────────────────────────────────
   const screenToWorld = (
     clientX: number,
     clientY: number
@@ -614,7 +577,6 @@ export const FixtureCanvas: React.FC = () => {
 
     if (e.button !== MOUSE_LEFT) return;
 
-    // ── Read-only: block all remaining left-click edit gestures ────
     if (isReadOnly) return;
 
     if (placement.isActive) {
@@ -674,7 +636,6 @@ export const FixtureCanvas: React.FC = () => {
     const screenX = (e.clientX - rect.left) * dpr;
     const screenY = (e.clientY - rect.top) * dpr;
 
-    // ── Read-only: skip drag and placement cursor ─────────────────
     if (isReadOnly) {
       if (isPanning) handleMouseMove(e);
       return;
@@ -750,7 +711,6 @@ export const FixtureCanvas: React.FC = () => {
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Zoom-to-fixture is a viewing operation — allowed in read-only.
     const canvas = canvasRef.current;
     const tf = transformRef.current;
     if (!canvas || !tf) return;

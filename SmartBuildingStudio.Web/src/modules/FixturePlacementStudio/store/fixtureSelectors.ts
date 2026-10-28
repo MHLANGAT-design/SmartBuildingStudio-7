@@ -1,14 +1,4 @@
 // src/modules/FixturePlacementStudio/store/fixtureSelectors.ts
-//
-// Memoized selectors for FixturePlacementStudio.
-//
-// Selectors that reach into the SessionRegistry return non-serializable
-// objects (FixtureDocument, FixtureHistory). These are read-only — the
-// caller must not mutate. The slice owns all mutations.
-//
-// PhotometricService is exposed via a module-level singleton so thunks
-// don't need to construct it repeatedly. The resolver is swappable via
-// setPhotometricResolver.
 
 import { createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '@/Application/ConfigureStore';
@@ -28,6 +18,7 @@ import {
   createStubDistributionResolver,
   type PhotometricDistributionResolver,
 } from '@/modules/FixturePlacementStudio/services/PhotometricService';
+import { registerPhotometricCacheClearer } from '@/modules/Shared/Photometry/photometricCacheRegistry';
 
 // ─── Base selectors ───────────────────────────────────────────────────────────
 
@@ -262,11 +253,6 @@ export function getPhotometricService(): PhotometricService {
  * Access the current photometric resolver. Used by callers that need to
  * invoke resolver-level operations — specifically `clearCache()` after
  * a photometric file upload so subsequent calculations refetch.
- *
- * The resolver is a stable module-scope instance, swapped only via
- * setPhotometricResolver. Calling getPhotometricResolver() gives the
- * live object; mutating it (clearCache) takes effect immediately for
- * any code holding the same reference.
  */
 export function getPhotometricResolver(): PhotometricDistributionResolver {
   return photometricResolver;
@@ -276,10 +262,13 @@ export function getPhotometricResolver(): PhotometricDistributionResolver {
  * Convenience wrapper — clears the resolver cache if the active
  * resolver supports it. Safe to call unconditionally; the stub resolver
  * (which has no cache) is a no-op.
- *
- * Call after uploading a photometric file so the next Calculate Lux
- * fetches the new distribution instead of the stale cached null.
  */
 export function resetPhotometricResolverCache(): void {
   photometricResolver.clearCache?.();
 }
+
+// Register with the shared registry so a single
+// `clearAllPhotometricCaches()` call (from the FPS upload dialog or
+// anywhere else) invalidates FPS's resolver cache alongside every other
+// module's photometric cache.
+registerPhotometricCacheClearer(resetPhotometricResolverCache);

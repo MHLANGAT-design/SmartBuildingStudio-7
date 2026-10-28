@@ -7,6 +7,7 @@ import {
   loadRawGeometry,
   runEmergencySimulation,
   runEmergencyHeatmap,
+  saveEmergencyRoutes,
 } from '@/modules/EmergencyLighting/store/emergencyThunks';
 import { EvacuationRoute } from '@/modules/EmergencyLighting/models/EvacuationRoute';
 
@@ -24,6 +25,11 @@ const initialState: EmergencyState = {
     status: 'idle',
     error: null,
     lastRunAt: null,
+  },
+  routesSave: {
+    status: 'idle',
+    error: null,
+    lastSavedAt: null,
   },
   routes: [],
   routeDrawing: {
@@ -139,6 +145,7 @@ const emergencySlice = createSlice({
         state.simulation = { issues: [], status: 'idle', error: null, lastRunAt: null };
         state.heatmap = { data: null, status: 'idle', error: null, lastRunAt: null };
         state.ui.selectedRouteId = null;
+        state.routes = action.payload.exitRoutes ?? [];
       })
       .addCase(loadEmergencyFloorplan.rejected, (state, action) => {
         state.floorplan.status = 'error';
@@ -182,6 +189,20 @@ const emergencySlice = createSlice({
       .addCase(runEmergencyHeatmap.rejected, (state, action) => {
         state.heatmap.status = 'error';
         state.heatmap.error = action.payload as string;
+      })
+
+      .addCase(saveEmergencyRoutes.pending, (state) => {
+        state.routesSave.status = 'saving';
+        state.routesSave.error = null;
+      })
+      .addCase(saveEmergencyRoutes.fulfilled, (state) => {
+        state.routesSave.status = 'saved';
+        state.routesSave.error = null;
+        state.routesSave.lastSavedAt = new Date().toISOString();
+      })
+      .addCase(saveEmergencyRoutes.rejected, (state, action) => {
+        state.routesSave.status = 'error';
+        state.routesSave.error = action.payload as string;
       });
   },
 });

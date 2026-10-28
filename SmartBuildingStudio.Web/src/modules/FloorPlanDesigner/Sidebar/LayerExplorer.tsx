@@ -1,24 +1,6 @@
 // src/modules/FloorPlanDesigner/Sidebar/LayerExplorer.tsx
-//
-// Layer panel. Rows are the user-facing categories; toggling a row
-// updates three channels:
-//
-//   1. LayerManager deck  — immediate effect on canvas paint
-//   2. Redux setLayerVisibility — load-time authority; canvas echoes back
-//   3. __hiddenLayersMap — fallback channel for layers that read it
-//
-// ── ADDED ── calibration, measurements, preview, selection, snap rows.
-// These are overlays painted by LayerManager (CalibrationLayer,
-// MeasurementLayer, PreviewLayer) or by CanvasRenderer (selection /
-// snap indicators). Toggling the row gates the corresponding layer via
-// LayerManager.applyVisibility and via the canvas's `layers.*` checks.
-//
-// The "Imported Drawings" row is still absent: the backing layer reads
-// a data shape the backend DTO does not provide (see the original note
-// above). If a future feature needs an underlay toggle, add it back here
-// and register an ImportedDrawingLayer deck-id mapping below.
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAppSelector, useAppDispatch } from "@/Application/ConfigureStore";
 import {
   markDirty,
@@ -36,11 +18,6 @@ interface Layer {
   order: number;
 }
 
-/**
- * Maps the panel's layer IDs to the Redux `LayerVisibilityState` keys.
- * Every row's id MUST exist as a key in `LayerVisibilityState`, or the
- * panel toggle will be ignored by the slice.
- */
 const LAYER_ID_TO_REDUX_KEY: Record<string, string> = {
   walls: 'walls',
   doors: 'doors',
@@ -48,8 +25,8 @@ const LAYER_ID_TO_REDUX_KEY: Record<string, string> = {
   rooms: 'rooms',
   rawgeometry: 'rawgeometry',
   fixtures: 'fixtures',
+  exitRoutes: 'exitRoutes',
   grid: 'grid',
-  // ── ADDED ──
   calibration: 'calibration',
   measurements: 'measurements',
   preview: 'preview',
@@ -57,10 +34,6 @@ const LAYER_ID_TO_REDUX_KEY: Record<string, string> = {
   snap: 'snap',
 };
 
-/**
- * Maps the panel's layer IDs to the aliases used in __hiddenLayersMap.
- * CanvasRenderer.isLayerVisible reads this map for its own gates.
- */
 const LAYER_ID_TO_HIDDEN_ALIASES: Record<string, string[]> = {
   walls: ['walls', 'wall'],
   doors: ['doors', 'door'],
@@ -68,8 +41,8 @@ const LAYER_ID_TO_HIDDEN_ALIASES: Record<string, string[]> = {
   rooms: ['rooms', 'room'],
   rawgeometry: ['rawgeometry'],
   fixtures: ['fixtures', 'fixture'],
+  exitRoutes: ['exitRoutes', 'exitroute', 'exitRoute'],
   grid: ['grid'],
-  // ── ADDED ──
   calibration: ['calibration'],
   measurements: ['measurements'],
   preview: ['preview'],
@@ -77,46 +50,33 @@ const LAYER_ID_TO_HIDDEN_ALIASES: Record<string, string[]> = {
   snap: ['snap'],
 };
 
-/**
- * Deck ids (IRenderLayer.getId()) → panel ids.
- * If a layer's deck id is not listed here, applyVisibility is a no-op
- * for it, and the toggle only affects Redux + __hiddenLayersMap.
- */
 const DECK_ID_TO_PANEL_ID: Record<string, string> = {
   'grid':        'grid',
   'walls':       'walls',
   'doors':       'doors',
   'windows':     'windows',
   'rooms':       'rooms',
-  // ── ADDED ──
   'calibration': 'calibration',
   'measurements': 'measurements',
   'preview':     'preview',
 };
 
 const DEFAULT_LAYERS: Layer[] = [
-  // ── Geometry ─────────────────────────────────────────────────────
   { id: "walls",         name: "Walls",                visible: true,  locked: false, order: 0 },
   { id: "doors",         name: "Doors",                visible: true,  locked: false, order: 1 },
   { id: "windows",       name: "Windows",              visible: true,  locked: false, order: 2 },
   { id: "rooms",         name: "Rooms",                visible: true,  locked: false, order: 3 },
   { id: "rawgeometry",   name: "Raw CAD Geometry",     visible: false, locked: false, order: 4 },
   { id: "fixtures",      name: "Electrical Fixtures",  visible: true,  locked: false, order: 5 },
-  // ── ADDED ── Annotations ─────────────────────────────────────────
-  { id: "calibration",   name: "Calibration",          visible: true,  locked: false, order: 6 },
-  { id: "measurements",  name: "Measurements",         visible: true,  locked: false, order: 7 },
-  { id: "preview",       name: "Selection Preview",    visible: true,  locked: false, order: 8 },
-  { id: "selection",     name: "Selection Outline",    visible: true,  locked: false, order: 9 },
-  { id: "snap",          name: "Snap Indicators",      visible: true,  locked: false, order: 10 },
-  // ── Canvas chrome ────────────────────────────────────────────────
-  { id: "grid",          name: "Grid",                 visible: true,  locked: false, order: 11 },
+  { id: "exitRoutes",    name: "Exit Routes",          visible: false, locked: false, order: 6 },
+  { id: "calibration",   name: "Calibration",          visible: true,  locked: false, order: 7 },
+  { id: "measurements",  name: "Measurements",         visible: true,  locked: false, order: 8 },
+  { id: "preview",       name: "Selection Preview",    visible: true,  locked: false, order: 9 },
+  { id: "selection",     name: "Selection Outline",    visible: true,  locked: false, order: 10 },
+  { id: "snap",          name: "Snap Indicators",      visible: true,  locked: false, order: 11 },
+  { id: "grid",          name: "Grid",                 visible: true,  locked: false, order: 12 },
 ];
 
-/**
- * Classifies a raw element's type into the panel's layer buckets.
- * `type === 'rawgeometry'` is checked BEFORE the wall fallback, otherwise
- * the C# ElementType.RawGeometry elements get counted as walls.
- */
 function classifyElementLayer(el: any): string | null {
   if (!el) return null;
 
@@ -124,6 +84,7 @@ function classifyElementLayer(el: any): string | null {
   const l = String(el.originalLayer ?? el.layer ?? el.Layer ?? '').toLowerCase();
 
   if (t === 'rawgeometry') return 'rawgeometry';
+  if (t === 'exitroute') return 'exitRoutes';
 
   if (
     t === 'door' || t === 'doors' ||
@@ -162,12 +123,8 @@ export function LayerExplorer() {
 
   const deck = useMemo(() => LayerManager.getInstance(), []);
 
-  // ── Hydrate from document.layers if present (persisted), else defaults ──
   useEffect(() => {
     if (document.layers && Array.isArray(document.layers) && document.layers.length > 0) {
-      // Merge persisted rows onto the current default row set so new rows
-      // (calibration, measurements, preview, …) still appear even for old
-      // documents that only persisted the original 7.
       const persistedById = new Map<string, Layer>(
         (document.layers as Layer[]).map((l) => [l.id, l])
       );
@@ -177,7 +134,6 @@ export function LayerExplorer() {
           ? { ...d, visible: p.visible, locked: p.locked, order: p.order ?? d.order }
           : d;
       });
-      // Append any persisted rows we don't have a default for.
       for (const p of document.layers as Layer[]) {
         if (!merged.find((m) => m.id === p.id)) merged.push(p);
       }
@@ -185,7 +141,6 @@ export function LayerExplorer() {
     }
   }, [document.layers]);
 
-  // ── Keep local `layers` in sync with Redux AND drive the deck ─────────
   useEffect(() => {
     setLayers(prev =>
       prev.map(layer => {
@@ -206,14 +161,12 @@ export function LayerExplorer() {
   }, [reduxLayers, deck]);
 
   const syncLayerVisibility = useCallback((updatedLayers: Layer[]) => {
-    // Channel 0: the deck — immediate paint effect.
     const visibilityByPanelId: Record<string, boolean> = {};
     updatedLayers.forEach(layer => {
       visibilityByPanelId[layer.id] = layer.visible;
     });
     deck.applyVisibility(visibilityByPanelId, DECK_ID_TO_PANEL_ID);
 
-    // Channel 1: Redux setLayerVisibility.
     const reduxPayload: Record<string, boolean> = {};
     updatedLayers.forEach(layer => {
       const reduxKey = LAYER_ID_TO_REDUX_KEY[layer.id];
@@ -223,7 +176,6 @@ export function LayerExplorer() {
       dispatch(setLayerVisibility(reduxPayload));
     }
 
-    // Channel 2: window.__hiddenLayersMap — fallback for layers that read it.
     const existingMap = (window as any).__hiddenLayersMap;
     const hiddenMap: Record<string, boolean> =
       existingMap && typeof existingMap === 'object' ? { ...existingMap } : {};
@@ -239,7 +191,6 @@ export function LayerExplorer() {
 
     (window as any).__hiddenLayersMap = hiddenMap;
 
-    // Mirror into the global doc for persistence/debug. Copy-on-write.
     const globalDoc = (window as any).__floorPlanActiveDocumentInstance;
     if (globalDoc && typeof globalDoc === "object") {
       (window as any).__floorPlanActiveDocumentInstance = {
@@ -249,12 +200,10 @@ export function LayerExplorer() {
       };
     }
 
-    // Persist to document.layers.
     const updatedDocument = { ...document, layers: updatedLayers };
     dispatch(setDocument(updatedDocument));
     dispatch(markDirty());
 
-    // Channel 3: force redraw.
     window.dispatchEvent(new CustomEvent("sbs:canvas-update"));
     window.dispatchEvent(new CustomEvent("canvas-invalidate"));
   }, [dispatch, document, deck]);
@@ -304,6 +253,7 @@ export function LayerExplorer() {
       rooms: 0,
       rawgeometry: 0,
       fixtures: 0,
+      exitRoutes: 0,
     };
 
     for (const el of elements) {
@@ -316,8 +266,6 @@ export function LayerExplorer() {
     return counts;
   }, [document.elements]);
 
-  // Overlay rows have no "element" to count from the document — they
-  // count from their own state slices.
   const measurementCount = floorPlanState?.measurements?.committed?.length ?? 0;
   const calibrationActive = floorPlanState?.calibration?.pxPerUnit ? 1 : 0;
 
@@ -329,6 +277,7 @@ export function LayerExplorer() {
       case "rooms":        return countSemantic(document.rooms, elementCounts.rooms);
       case "rawgeometry":  return elementCounts.rawgeometry;
       case "fixtures":     return elementCounts.fixtures;
+      case "exitRoutes":   return elementCounts.exitRoutes;
       case "measurements": return measurementCount;
       case "calibration":  return calibrationActive;
       case "preview":      return -1;

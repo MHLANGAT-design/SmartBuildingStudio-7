@@ -20,11 +20,18 @@ import { DaliDocument } from "@/modules/DaliDesigner/Document/DaliDocument";
 import { DaliDevice } from "@/modules/DaliDesigner/models/DaliDevice";
 import { nanoid } from "nanoid";
 import { DeviceKind } from "@/modules/DaliDesigner/models/DaliDevice";
+import {
+  bumpDocumentVersion,
+  recordDocumentLoaded,
+} from "@/modules/Shared/DocumentVersion/documentVersionSlice";
+import { selectCurrentDocumentVersion } from "@/modules/Shared/DocumentVersion/selectDocumentFresh";
 
 export const loadDaliNetwork = createAsyncThunk<
   DaliDocument,
   { projectId: string; floorplanId: string; networkId?: string }
->("dali/load", async ({ projectId, floorplanId, networkId }) => {
+>("dali/load", async ({ projectId, floorplanId, networkId }, { getState, dispatch }) => {
+  const versionAtLoad = selectCurrentDocumentVersion(getState());
+
   let doc: DaliDocument;
 
   if (networkId) {
@@ -48,14 +55,21 @@ export const loadDaliNetwork = createAsyncThunk<
   }
 
   const fixtures = await DaliApi.getPlacedFixtures(projectId, floorplanId);
-  return DaliNetworkManager.importFixtures(doc, fixtures);
+  const result = DaliNetworkManager.importFixtures(doc, fixtures);
+
+  // The floorplan is the shared document identifier. Record the version
+  // under that key so other modules checking freshness for the same
+  // document see the same record.
+  dispatch(recordDocumentLoaded({ documentId: floorplanId, version: versionAtLoad }));
+
+  return result;
 });
 
 export const saveDaliNetwork = createAsyncThunk<
   DaliDocument,
   void,
   { state: RootState }
->("dali/save", async (_, { getState }) => {
+>("dali/save", async (_, { getState, dispatch }) => {
   const doc = getState().dali.document;
   const dto = DaliDocumentSerializer.toDTO({
     ...doc,
@@ -63,6 +77,7 @@ export const saveDaliNetwork = createAsyncThunk<
     updatedAt: new Date().toISOString(),
   });
   const saved = await DaliNetworkService.save(dto);
+  dispatch(bumpDocumentVersion());
   return DaliDocumentSerializer.fromDTO(saved);
 });
 
@@ -70,12 +85,13 @@ export const saveDaliNetworkAs = createAsyncThunk<
   DaliDocument,
   { name: string },
   { state: RootState }
->("dali/saveAs", async ({ name }, { getState }) => {
+>("dali/saveAs", async ({ name }, { getState, dispatch }) => {
   const doc = { ...getState().dali.document, id: null, name, revision: 0 };
   const saved = await DaliApi.createDaliNetwork(
     doc.projectId,
     DaliDocumentSerializer.toDTO(doc)
   );
+  dispatch(bumpDocumentVersion());
   return DaliDocumentSerializer.fromDTO(saved);
 });
 
@@ -83,10 +99,13 @@ export const loadFloorplan = createAsyncThunk<
   FloorplanRenderModel,
   { floorplanId: string },
   { state: RootState }
->("dali/loadFloorplan", async ({ floorplanId }, { rejectWithValue }) => {
-  // Skip raw geometry on initial load
+>("dali/loadFloorplan", async ({ floorplanId }, { getState, dispatch, rejectWithValue }) => {
+  const versionAtLoad = selectCurrentDocumentVersion(getState());
+
   const outcome = await FloorplanLoader.load(floorplanId, false);
   if (!outcome.ok) return rejectWithValue(outcome.error);
+
+  dispatch(recordDocumentLoaded({ documentId: floorplanId, version: versionAtLoad }));
   return outcome.model;
 });
 

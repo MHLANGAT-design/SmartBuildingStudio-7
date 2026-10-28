@@ -1,22 +1,4 @@
 ﻿// src/modules/DaliDesigner/DaliDesignerPage.tsx
-//
-// Load orchestration — the page owns the full load sequence:
-//   1. On cache miss: reset (pre-paint) → clear doc AND floorplan sub-state.
-//   2. Fetch DALI network AND floorplan geometry in parallel.
-//   3. Render only when BOTH are ready and match the URL.
-//
-// The DALI doc + floorplan geometry must be loaded atomically. Previously
-// they loaded from two different components on two different schedules,
-// so new DALI devices briefly rendered over old floorplan walls for the
-// ~200ms gap between loadDaliNetwork.fulfilled and loadFloorplan.fulfilled.
-// The page-level gate now blocks that window entirely.
-//
-// First-visit support: when the URL has no networkId (arriving from FPS's
-// "Open DALI Designer" button, or any fresh visit), the slice is expected
-// to hold an empty document with `id: null`. That's the valid "no saved
-// network yet" state — the designer should open onto an empty canvas so
-// the user can build one. The gate must not require a non-null documentId
-// in that case, or it hangs on the loading screen forever.
 
 import React, { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -39,6 +21,7 @@ import {
   selectFloorplanModel,
   selectFloorplanStatus,
 } from "@/modules/DaliDesigner/store/daliSelectors";
+import { selectDocumentFresh } from "@/modules/Shared/DocumentVersion/selectDocumentFresh";
 
 export function DaliDesignerPage() {
   const { projectId, floorplanId, networkId } = useParams<{
@@ -60,24 +43,23 @@ export function DaliDesignerPage() {
 
   const [resolving, setResolving] = useState(false);
 
-  // Slice holds the doc that matches the URL.
-  // documentId may be null when no network exists yet — that's a valid
-  // "fresh" state, and the designer should open onto an empty canvas.
-  // Only require the id to match when the URL specifies one.
   const sliceMatchesUrl =
     !!storeFloorplanId &&
     !!floorplanId &&
     storeFloorplanId === floorplanId &&
     (!networkId || documentId === networkId);
 
-  // FloorplanRenderModel.documentId is the ProjectDocument id (the
-  // floorplanId), set by FloorplanLoader.load(). Compare it to the URL.
   const floorplanModelId = (floorplanModel as any)?.documentId ?? null;
   const floorplanReady =
     floorplanStatus === "ready" &&
     !!floorplanModel &&
     !!floorplanId &&
     floorplanModelId === floorplanId;
+
+  // Freshness check — if the underlying document hasn't changed since we
+  // last loaded it, and the DALI slice already matches the URL, we can
+  // skip the reload entirely.
+  const isFresh = useAppSelector(selectDocumentFresh(floorplanId || ""));
 
   // ── Reset before paint on cache miss ────────────────────────────────
   useLayoutEffect(() => {
@@ -88,6 +70,9 @@ export function DaliDesignerPage() {
   }, [dispatch, floorplanId, networkId]);
 
   // ── Load DALI network on cache miss ─────────────────────────────────
+  // Unchanged from before — network reloads can lose unsaved device
+  // edits, so freshness for the network is gated by sliceMatchesUrl
+  // (which includes documentId === networkId).
   useEffect(() => {
     if (!projectId || !floorplanId) return;
     if (sliceMatchesUrl) return;
@@ -127,13 +112,15 @@ export function DaliDesignerPage() {
   }, [dispatch, projectId, floorplanId, networkId, navigate]);
 
   // ── Load floorplan geometry ─────────────────────────────────────────
+  // Now freshness-gated: if the document version has changed since we
+  // last loaded the floorplan (e.g. FPS saved fixtures), force reload.
   useEffect(() => {
     if (!floorplanId) return;
     if (floorplanStatus === "loading") return;
-    if (floorplanReady) return;
+    if (floorplanReady && isFresh) return;
     dispatch(loadFloorplan({ floorplanId }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, floorplanId, floorplanStatus, floorplanReady]);
+  }, [dispatch, floorplanId, floorplanStatus, floorplanReady, isFresh]);
 
   // ── Adopt loaded network id into URL ────────────────────────────────
   useEffect(() => {

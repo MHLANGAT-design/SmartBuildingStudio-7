@@ -3,6 +3,7 @@
 import { API_ROUTES } from '@/Application/ApiRoutes';
 import { BackendPayloadMapper } from '@/modules/FloorPlanDesigner/Store/BackendPayloadMapper';
 import { transformDbSchemaToCanvasSchema } from '@/modules/FloorPlanDesigner/Utils/DatabaseToCanvasTransformer';
+import { extractRoutesFromElements } from '@/modules/EmergencyLighting/Document/projectRoutes';
 
 export interface EmergencyFloorplanRenderModel {
   documentId: string;
@@ -13,6 +14,7 @@ export interface EmergencyFloorplanRenderModel {
   windows: any[];
   rooms: any[];
   electricalFixtures: any[];
+  exitRoutes: any[];
   _rawPayload?: any;
 }
 
@@ -48,18 +50,11 @@ function hasValidCoords(el: any): boolean {
   );
 }
 
-/**
- * Extract electrical fixtures from whatever shape the backend sends.
- * The DTO has one of: placedFixturesJson, PlacedFixturesJson, or the
- * fixtures are inlined on the payload. Try all of them.
- */
 function extractElectricalFixtures(raw: any, parsedDoc: any): any[] {
-  // 1. If the mapper already populated electricalFixtures, prefer that.
   if (Array.isArray(parsedDoc?.electricalFixtures) && parsedDoc.electricalFixtures.length > 0) {
     return parsedDoc.electricalFixtures;
   }
 
-  // 2. Otherwise try the JSON blob.
   const blob =
     raw?.placedFixturesJson ??
     raw?.PlacedFixturesJson ??
@@ -90,7 +85,6 @@ function extractElectricalFixtures(raw: any, parsedDoc: any): any[] {
     }
   }
 
-  // 3. Last resort: the raw payload might have them inline.
   const inline = raw?.electricalFixtures ?? parsedDoc?.electricalFixtures;
   return Array.isArray(inline) ? inline : [];
 }
@@ -195,8 +189,8 @@ export const EmergencyFloorplanLoader = {
         });
       }
 
-      // ── Extract electrical fixtures ──────────────────────────────
       const electricalFixtures = extractElectricalFixtures(data, parsedDocument);
+      const exitRoutes = extractRoutesFromElements(mergedElements);
 
       console.log('[EmergencyFloorplanLoader] model ready', {
         total: mergedElements.length,
@@ -205,6 +199,7 @@ export const EmergencyFloorplanLoader = {
         windows: (plan.windows || parsedDocument.windows || []).length,
         rooms: (plan.rooms || parsedDocument.rooms || []).length,
         electricalFixtures: electricalFixtures.length,
+        exitRoutes: exitRoutes.length,
         sampleFixture: electricalFixtures[0],
       });
 
@@ -219,6 +214,7 @@ export const EmergencyFloorplanLoader = {
           windows: plan.windows || parsedDocument.windows || [],
           rooms: plan.rooms || parsedDocument.rooms || [],
           electricalFixtures,
+          exitRoutes,
           _rawPayload: data,
         },
       };

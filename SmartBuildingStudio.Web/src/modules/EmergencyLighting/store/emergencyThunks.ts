@@ -3,6 +3,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { nanoid } from 'nanoid';
 import { ThunkApiConfig } from '@/Application/ConfigureStore';
+import { API_ROUTES } from '@/Application/ApiRoutes';
 import { EmergencyFloorplanLoader } from '@/modules/EmergencyLighting/Document/EmergencyFloorplanLoader';
 import { ComplianceEngine } from '@/modules/EmergencyLighting/Document/ComplianceEngine';
 import { EvacuationRouteEngine } from '@/modules/EmergencyLighting/Document/EvacuationRouteEngine';
@@ -13,12 +14,22 @@ import {
 } from '@/modules/EmergencyLighting/store/emergencyTypes';
 import { addEvacuationRouteAction } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { PhotometricService } from '@/modules/FixturePlacementStudio/services/PhotometricService';
-import { createProductCatalogPhotometricResolver } from '@/modules/FixturePlacementStudio/services/ProductCatalogPhotometricResolver';
+import {
+  createProductCatalogPhotometricResolver,
+} from '@/modules/FixturePlacementStudio/services/ProductCatalogPhotometricResolver';
 import type { PhotometricData } from '@/modules/FixturePlacementStudio/models/PhotometricData';
 import {
   convertToFixtureLayout,
   extractBarriers,
 } from '@/modules/EmergencyLighting/Document/heatmapConverter';
+import { registerPhotometricCacheClearer } from '@/modules/Shared/Photometry/photometricCacheRegistry';
+import { projectRoutesToElements } from '@/modules/EmergencyLighting/Document/projectRoutes';
+import { setDocument, incrementChangeTrigger } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
+import {
+  bumpDocumentVersion,
+  recordDocumentLoaded,
+} from '@/modules/Shared/DocumentVersion/documentVersionSlice';
+import { selectCurrentDocumentVersion } from '@/modules/Shared/DocumentVersion/selectDocumentFresh';
 
 // =====================================================================
 // Floorplan
@@ -28,9 +39,13 @@ export const loadEmergencyFloorplan = createAsyncThunk<
   any,
   string,
   ThunkApiConfig
->('emergency/loadFloorplan', async (floorplanId, { rejectWithValue }) => {
+>('emergency/loadFloorplan', async (floorplanId, { getState, dispatch, rejectWithValue }) => {
+  const versionAtLoad = selectCurrentDocumentVersion(getState());
+
   const outcome = await EmergencyFloorplanLoader.load(floorplanId, false);
   if (!outcome.ok) return rejectWithValue(outcome.error);
+
+  dispatch(recordDocumentLoaded({ documentId: floorplanId, version: versionAtLoad }));
   return outcome.model;
 });
 
@@ -54,18 +69,33 @@ export const loadRawGeometry = createAsyncThunk<
 });
 
 // =====================================================================
-// Heatmap — FPS PhotometricService
+// Photometric service
 // =====================================================================
 
 let sharedPhotometricService: PhotometricService | null = null;
+let sharedResolver: ReturnType<typeof createProductCatalogPhotometricResolver> | null = null;
+
 function getPhotometricService(): PhotometricService {
   if (!sharedPhotometricService) {
-    sharedPhotometricService = new PhotometricService(
-      createProductCatalogPhotometricResolver()
-    );
+    sharedResolver = createProductCatalogPhotometricResolver();
+    sharedPhotometricService = new PhotometricService(sharedResolver);
   }
   return sharedPhotometricService;
 }
+
+export function clearPhotometricCache(): void {
+  if (sharedResolver && typeof sharedResolver.clearCache === 'function') {
+    sharedResolver.clearCache();
+  }
+  sharedResolver = null;
+  sharedPhotometricService = null;
+}
+
+registerPhotometricCacheClearer(clearPhotometricCache);
+
+// =====================================================================
+// Heatmap
+// =====================================================================
 
 export const runEmergencyHeatmap = createAsyncThunk<
   PhotometricData,
@@ -102,7 +132,7 @@ export const runEmergencyHeatmap = createAsyncThunk<
 });
 
 // =====================================================================
-// Simulation — auto-computes heatmap if missing
+// Simulation
 // =====================================================================
 
 export const runEmergencySimulation = createAsyncThunk<
@@ -127,10 +157,8 @@ export const runEmergencySimulation = createAsyncThunk<
       complianceIssues: [],
       lastRunAt: null,
       simulationStatus: 'idle',
-    } as any;
+    };
 
-    // Auto-compute heatmap if missing, so ▶ Run Simulation is a
-    // single click that also evaluates visibility.
     let heatmapData: PhotometricData | null = emergency.heatmap?.data ?? null;
     if (!heatmapData) {
       const result = await dispatch(runEmergencyHeatmap({}) as any);
@@ -170,4 +198,114 @@ export const commitEvacuationRoute = createAsyncThunk<
   const evaluated = EvacuationRouteEngine.evaluateRoute(draft);
   dispatch(addEvacuationRouteAction(evaluated));
   await dispatch(runEmergencySimulation());
+});
+
+// =====================================================================
+// Save routes — bump version on success
+// =====================================================================
+
+export const saveEmergencyRoutes = createAsyncThunk<
+  void,
+  void,
+  ThunkApiConfig
+>('emergency/saveRoutes', async (_, { getState, dispatch, rejectWithValue }) => {
+  const state = getState() as any;
+  const emergency = state.emergency;
+  const model = emergency.floorplan.model;
+  if (!model) return rejectWithValue('Floorplan not loaded.');
+
+  const documentId = model.documentId;
+  if (!documentId) return rejectWithValue('Missing documentId.');
+
+  const getUrl = API_ROUTES.PROJECT_EXPLORER_SERVICE.DOCUMENTS.GET(documentId);
+  let currentPayload: any;
+  try {
+    const getRes = await fetch(getUrl, { headers: { Accept: 'application/json' } });
+    if (!getRes.ok) {
+      const text = await getRes.text().catch(() => '');
+      return rejectWithValue(`Pre-save fetch failed (${getRes.status}): ${text}`);
+    }
+    currentPayload = await getRes.json();
+  } catch (err: any) {
+    return rejectWithValue(err?.message ?? 'Pre-save fetch error');
+  }
+
+  const currentDrawnWallsRaw =
+    currentPayload.drawnWallsJson ?? currentPayload.DrawnWallsJson;
+  let currentDrawnWalls: any;
+  try {
+    currentDrawnWalls = typeof currentDrawnWallsRaw === 'string'
+      ? JSON.parse(currentDrawnWallsRaw)
+      : (currentDrawnWallsRaw || {});
+  } catch {
+    currentDrawnWalls = {};
+  }
+
+  const existingElements: any[] = Array.isArray(currentDrawnWalls.elements)
+    ? currentDrawnWalls.elements
+    : [];
+
+  const updatedElements = projectRoutesToElements(
+    emergency.routes || [],
+    existingElements
+  );
+
+  const updatedDrawnWalls = {
+    ...currentDrawnWalls,
+    elements: updatedElements,
+  };
+
+  const savePayload = {
+    DrawnWallsJson: JSON.stringify(updatedDrawnWalls),
+    DefinedRoomsJson:
+      currentPayload.definedRoomsJson ?? currentPayload.DefinedRoomsJson ?? '[]',
+    PlacedFixturesJson:
+      currentPayload.placedFixturesJson ?? currentPayload.PlacedFixturesJson ?? '{}',
+    PixelsToMetresScale:
+      currentPayload.pixelsToMetresScale ??
+      currentPayload.PixelsToMetresScale ??
+      1,
+  };
+
+  const putUrl = API_ROUTES.PROJECT_EXPLORER_SERVICE.DOCUMENTS.UPDATE(documentId);
+  try {
+    const putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(savePayload),
+    });
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '');
+      return rejectWithValue(`Save failed (${putRes.status}): ${text}`);
+    }
+  } catch (err: any) {
+    return rejectWithValue(err?.message ?? 'Save error');
+  }
+
+  try {
+    const floorPlanDoc = state.floorPlan?.document;
+    if (floorPlanDoc) {
+      const existingFloorPlanElements = Array.isArray(floorPlanDoc.elements)
+        ? floorPlanDoc.elements.filter(
+            (el: any) => String(el?.type ?? '').toLowerCase() !== 'exitroute'
+          )
+        : [];
+      const newRouteElements = updatedElements.filter(
+        (el: any) => String(el?.type ?? '').toLowerCase() === 'exitroute'
+      );
+      dispatch(
+        setDocument({
+          ...floorPlanDoc,
+          elements: [...existingFloorPlanElements, ...newRouteElements],
+        })
+      );
+      dispatch(incrementChangeTrigger());
+    }
+  } catch (syncErr) {
+    // eslint-disable-next-line no-console
+    console.warn('[saveEmergencyRoutes] Same-session sync failed', syncErr);
+  }
+
+  dispatch(bumpDocumentVersion());
+  return;
 });

@@ -1,6 +1,4 @@
 // src/modules/FloorPlanDesigner/Store/FloorPlanSlice.ts
-// ✅ CONSOLIDATED + reclassifyElement reducer + calibration/measurements/hoveredId
-// ── ADDED ── calibration, measurements, hoveredId state + reducers
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
@@ -115,6 +113,7 @@ export interface LayerVisibilityState {
   snap: boolean;
   selection: boolean;
   preview: boolean;
+  exitRoutes: boolean;
 }
 
 export interface ValidationState {
@@ -137,7 +136,6 @@ export type FloorPlanTool =
 export type FloorPlanMode =
   | "idle" | "drawing" | "editing" | "measuring" | "panning";
 
-// ── ADDED ── CalibrationState ──────────────────────────────────────────────
 export interface CalibrationState {
   p1: Point2D | null;
   p2: Point2D | null;
@@ -146,7 +144,6 @@ export interface CalibrationState {
   pxPerUnit: number | null;
 }
 
-// ── ADDED ── MeasurementState ──────────────────────────────────────────────
 export interface Measurement {
   id: string;
   from: Point2D;
@@ -178,7 +175,6 @@ export interface FloorPlanState {
   version: number;
   lastSaved?: Date;
   lastSavedPayload?: any;
-  // ── ADDED ──
   calibration: CalibrationState;
   measurements: MeasurementState;
   hoveredId: string | null;
@@ -200,6 +196,7 @@ const initialLayers: LayerVisibilityState = {
   snap: false,
   selection: true,
   preview: true,
+  exitRoutes: false,
 };
 
 const initialValidation: ValidationState = {
@@ -211,7 +208,6 @@ const initialUi: FloorPlanUiState = {
   toolbarVisible: true, statusBarVisible: true,
 };
 
-// ── ADDED ── new initial state slices
 const initialCalibration: CalibrationState = {
   p1: null, p2: null, knownDistance: null, unit: "mm", pxPerUnit: null,
 };
@@ -237,13 +233,11 @@ const initialState: FloorPlanState = {
   changeTrigger: 0,
   version: 0,
   lastSaved: undefined, lastSavedPayload: undefined,
-  // ── ADDED ──
   calibration: initialCalibration,
   measurements: initialMeasurements,
   hoveredId: null,
 };
 
-// ── ADDED ── derive pxPerUnit from calibration geometry
 function recomputePxPerUnit(c: CalibrationState): number | null {
   if (!c.p1 || !c.p2 || !c.knownDistance || c.knownDistance <= 0) return null;
   const worldDist = Math.hypot(c.p2.x - c.p1.x, c.p2.y - c.p1.y);
@@ -274,7 +268,6 @@ const floorPlanSlice = createSlice({
   name: "floorPlan",
   initialState,
   reducers: {
-    // ── Document & Metadata ────────────────────────────────────────────
     setDocument: (state, action: PayloadAction<any>) => {
       const raw = action.payload;
       if (!raw) return;
@@ -307,7 +300,6 @@ const floorPlanSlice = createSlice({
         state.selection = null;
         state.multiSelection = [];
         state.isDirty = false;
-        // ── ADDED ── clear calibration/measurements on document switch
         state.calibration = { ...initialCalibration };
         state.measurements = { ...initialMeasurements, committed: [] };
         state.hoveredId = null;
@@ -455,7 +447,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Reclassify ────────────────────────────────────────────────────
     reclassifyElement: (
       state,
       action: PayloadAction<{ id: string; target: ReclassifyTarget }>
@@ -520,23 +511,19 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Dirty / Saving Flags ────────────────────────────────────────────
     markDirty: (state) => { state.isDirty = true; },
     markClean: (state) => { state.isDirty = false; },
     clearDirty: (state) => { state.isDirty = false; },
     markSaved: (state) => { state.isDirty = false; state.isSaving = false; },
     setSaving: (state, action: PayloadAction<boolean>) => { state.isSaving = action.payload; },
 
-    // ── Loading / Error ────────────────────────────────────────────────
     setLoading: (state, action: PayloadAction<boolean>) => { state.loading = action.payload; },
     setError: (state, action: PayloadAction<string | null>) => { state.error = action.payload; },
     clearError: (state) => { state.error = null; },
 
-    // ── Selection ──────────────────────────────────────────────────────
     setSelection: (state, action: PayloadAction<any>) => { state.selection = action.payload; },
     clearSelection: (state) => { state.selection = null; },
 
-    // ── Multi-Selection ───────────────────────────────────────────────
     setMultiSelection: (state, action: PayloadAction<string[]>) => {
       state.multiSelection = Array.isArray(action.payload)
         ? Array.from(new Set(action.payload.map(String)))
@@ -549,12 +536,10 @@ const floorPlanSlice = createSlice({
     },
     clearMultiSelection: (state) => { state.multiSelection = []; },
 
-    // ── ADDED ── Hover ────────────────────────────────────────────────
     setHoveredId: (state, action: PayloadAction<string | null>) => {
       state.hoveredId = action.payload;
     },
 
-    // ── ADDED ── Calibration ─────────────────────────────────────────
     setCalibrationPoint: (
       state,
       action: PayloadAction<{ which: "p1" | "p2"; point: Point2D | null }>
@@ -574,7 +559,6 @@ const floorPlanSlice = createSlice({
       state.calibration = { ...initialCalibration };
     },
 
-    // ── ADDED ── Measurement ─────────────────────────────────────────
     addMeasurement: (state, action: PayloadAction<Measurement>) => {
       state.measurements.committed.push(action.payload);
       state.measurements.draftFrom = null;
@@ -603,7 +587,6 @@ const floorPlanSlice = createSlice({
       }
     },
 
-    // ── Room CRUD ──────────────────────────────────────────────────────
     addRoom: (state, action: PayloadAction<Room>) => {
       const r = action.payload;
       state.document.rooms.push({
@@ -627,7 +610,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Door CRUD ──────────────────────────────────────────────────────
     addDoor: (state, action: PayloadAction<Door>) => {
       const d = action.payload;
       state.document.doors.push({
@@ -652,7 +634,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Window CRUD ────────────────────────────────────────────────────
     addWindow: (state, action: PayloadAction<Window>) => {
       const w = action.payload;
       state.document.windows.push({
@@ -677,7 +658,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Wall CRUD ──────────────────────────────────────────────────────
     addWall: (state, action: PayloadAction<Wall>) => {
       const w = action.payload;
       state.document.walls.push({
@@ -706,7 +686,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Electrical Fixture CRUD ──────────────────────────────────────
     addElectricalFixture: (state, action: PayloadAction<ElectricalFixture>) => {
       const f = action.payload;
       state.document.electricalFixtures.push({
@@ -733,7 +712,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Imported Drawing CRUD ────────────────────────────────────────
     addImportedDrawing: (state, action: PayloadAction<ImportedDrawing>) => {
       const d = action.payload;
       state.document.importedDrawings.push({
@@ -769,7 +747,6 @@ const floorPlanSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ── Viewport ──────────────────────────────────────────────────────
     setViewport: (state, action: PayloadAction<Partial<ViewportState>>) => {
       state.viewport = { ...state.viewport, ...action.payload };
     },
@@ -779,7 +756,6 @@ const floorPlanSlice = createSlice({
       state.viewport.offsetY = action.payload.y;
     },
 
-    // ── Layers ────────────────────────────────────────────────────────
     setLayerVisibility: (state, action: PayloadAction<Partial<LayerVisibilityState>>) => {
       state.layers = { ...state.layers, ...action.payload };
     },
@@ -788,13 +764,11 @@ const floorPlanSlice = createSlice({
       state.layers[key] = !state.layers[key];
     },
 
-    // ── Validation ────────────────────────────────────────────────────
     setValidation: (state, action: PayloadAction<Partial<ValidationState>>) => {
       state.validation = { ...state.validation, ...action.payload };
     },
     resetValidation: (state) => { state.validation = { ...initialValidation }; },
 
-    // ── UI ────────────────────────────────────────────────────────────
     setUiState: (state, action: PayloadAction<Partial<FloorPlanUiState>>) => {
       state.ui = { ...state.ui, ...action.payload };
     },
@@ -803,27 +777,22 @@ const floorPlanSlice = createSlice({
     toggleToolbar: (state) => { state.ui.toolbarVisible = !state.ui.toolbarVisible; },
     toggleStatusBar: (state) => { state.ui.statusBarVisible = !state.ui.statusBarVisible; },
 
-    // ── Tool & Mode ──────────────────────────────────────────────────
     setActiveTool: (state, action: PayloadAction<FloorPlanTool>) => { state.activeTool = action.payload; },
     setMode: (state, action: PayloadAction<FloorPlanMode>) => { state.mode = action.payload; },
 
-    // ── Change Trigger & Version ─────────────────────────────────────
     incrementChangeTrigger: (state) => { state.changeTrigger += 1; },
     setChangeTrigger: (state, action: PayloadAction<number>) => { state.changeTrigger = action.payload; },
     setVersion: (state, action: PayloadAction<number>) => { state.version = action.payload; },
     incrementVersion: (state) => { state.version += 1; },
 
-    // ── Last Saved ──────────────────────────────────────────────────
     setLastSaved: (state, action: PayloadAction<Date>) => { state.lastSaved = action.payload; },
     setLastSavedPayload: (state, action: PayloadAction<any>) => { state.lastSavedPayload = action.payload; },
 
-    // ── Reset ────────────────────────────────────────────────────────
     clearDocument: (state) => {
       state.document = initialState.document;
       state.isDirty = false;
       state.selection = null;
       state.multiSelection = [];
-      // ── ADDED ──
       state.calibration = { ...initialCalibration };
       state.measurements = { ...initialMeasurements, committed: [] };
       state.hoveredId = null;
@@ -855,7 +824,6 @@ export const {
   setLastSaved, setLastSavedPayload,
   clearDocument, resetState,
   reclassifyElement,
-  // ── ADDED ──
   setHoveredId,
   setCalibrationPoint, setCalibrationDistance, resetCalibration,
   addMeasurement, removeMeasurement, clearMeasurements, setMeasurementDraft,

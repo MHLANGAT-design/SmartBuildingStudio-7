@@ -1,41 +1,4 @@
 // src/modules/FloorPlanDesigner/Components/Canvas/FloorPlanCanvas.tsx
-//
-// Ownership note: this file does NOT write __floorPlanActiveDocumentInstance.
-//
-// Pan architecture (standardised with FPS):
-//   • Middle-drag                → pan (CAD convention)
-//   • Space + left-drag          → pan (2D-tool convention: Figma/Miro/PS)
-//   • Hand tool (GlobalZoomControl) → left-drag pans while active
-//   • Right-click                → ignored (reserved for future context menu)
-//   • Left-click on empty canvas → marquee select (existing select-tool behavior)
-//
-// Zoom surface: registers a ZoomableSurface with the shared registry.
-// Double-click with the select tool on an element → zoomToRect to
-// centre that element at ~40% canvas fill.
-//
-// LEVEL 1 READ-ONLY (isReadOnly prop):
-//   Set by FloorPlanDesigner when the document is locked by another
-//   user. In read-only mode:
-//     • Pan (middle / space+left / hand tool) works
-//     • Wheel zoom works
-//     • Double-click zoom-to-element works (viewing)
-//     • Marquee select, drawing tools, drag — all blocked
-//     • Cursor is `default` (no crosshair)
-//
-// ── TOOL PIPELINE ──
-//   Geometry tools (wall/room/door/window) and the overlay tools
-//   (measurement-ruler, calibration-ruler) are instantiated directly by
-//   this component on `activeTool` change. All of them self-render their
-//   overlays and self-manage transient state.
-//
-//   The viewport object injected into the active tool each frame exposes
-//   BOTH worldToScreen and screenToWorld. MeasurementRulerTool and
-//   CalibrationRulerTool call screenToWorld on pointer-down; the
-//   wall/room/door/window tools read worldToScreen for overlays.
-//
-//   The live renderPlan is injected as `__document` on the active tool
-//   each frame, so CalibrationRulerTool can snap to real document
-//   endpoints without reading a legacy global.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useCanvasPan } from '@/modules/FloorPlanDesigner/Hooks/useCanvasPan';
@@ -72,7 +35,6 @@ import { useZoomSurface } from '@/modules/Shared/Zoom/zoomRegistry';
 import type { ZoomableSurface, WorldRect } from '@/modules/Shared/Zoom/zoomSurface';
 import { usePanMode } from '@/modules/Shared/Zoom/panMode';
 
-// ── Overlay layer imports (rendered inside the world transform block) ──
 import { LayerManager } from '@/modules/FloorPlanDesigner/Canvas/LayerManager';
 import { RenderContext } from '@/modules/FloorPlanDesigner/Canvas/RenderContext';
 
@@ -95,6 +57,7 @@ const DEFAULT_LAYERS: Record<string, boolean> = {
   snap: false,
   selection: true,
   preview: true,
+  exitRoutes: false,
 };
 
 const TOOL_TO_LAYER_KEY: Record<string, string | null> = {
@@ -167,27 +130,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
 
   const zoomSurface = useMemo<ZoomableSurface>(() => ({
     moduleName: 'Floor Plan Designer',
-
     getZoom: () => scale,
-
     setZoom: (z: number) => {
       const clamped = Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX);
       setScale(clamped);
     },
-
-    zoomIn: () => {
-      setScale((prev: number) => Math.min(prev * ZOOM_STEP, ZOOM_MAX));
-    },
-
-    zoomOut: () => {
-      setScale((prev: number) => Math.max(prev / ZOOM_STEP, ZOOM_MIN));
-    },
-
-    fitToContent: () => {
-      setScale(1);
-      setOffset({ x: 0, y: 0 });
-    },
-
+    zoomIn: () => { setScale((prev: number) => Math.min(prev * ZOOM_STEP, ZOOM_MAX)); },
+    zoomOut: () => { setScale((prev: number) => Math.max(prev / ZOOM_STEP, ZOOM_MIN)); },
+    fitToContent: () => { setScale(1); setOffset({ x: 0, y: 0 }); },
     zoomToRect: (rect: WorldRect, opts) => {
       const fill = opts?.fill ?? DOUBLE_CLICK_ZOOM_FILL;
       const maxZoom = opts?.maxZoom ?? DOUBLE_CLICK_ZOOM_MAX;
@@ -208,10 +158,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
       const zoomForW = (tf.width * fill) / (worldW * naturalScaleX);
       const zoomForH = (tf.height * fill) / (worldH * naturalScaleY);
       const rawTarget = Math.min(zoomForW, zoomForH);
-      const targetZoom = Math.min(
-        Math.max(rawTarget, minZoom),
-        Math.min(maxZoom, ZOOM_MAX)
-      );
+      const targetZoom = Math.min(Math.max(rawTarget, minZoom), Math.min(maxZoom, ZOOM_MAX));
       if (!Number.isFinite(targetZoom) || targetZoom <= 0) return;
 
       const newFinalScale = naturalScaleX * targetZoom;
@@ -337,6 +284,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
     if (layers.windows === false) { hiddenMap['windows'] = true; hiddenMap['window'] = true; }
     if (layers.rooms === false) { hiddenMap['rooms'] = true; hiddenMap['room'] = true; }
     if (layers.rawgeometry === false) { hiddenMap['rawgeometry'] = true; }
+    if (layers.exitRoutes === false) {
+      hiddenMap['exitRoutes'] = true;
+      hiddenMap['exitroute'] = true;
+      hiddenMap['exitRoute'] = true;
+    }
     (window as any).__hiddenLayersMap = hiddenMap;
   }, [layers]);
 
@@ -693,8 +645,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
   const dataSource = activeDocumentState || plan;
   const renderPlan: ArchitecturalPlan = usePlanRenderer(dataSource, layers);
 
-  // Viewport exposes BOTH worldToScreen and screenToWorld, and has the
-  // current canvas dimensions baked in. Tools read these per-frame.
   const getViewport = () => {
     const tf = transformRef.current; if (!tf) return null;
     return {
@@ -1010,8 +960,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ plan, activeTo
             (activeToolInstance as any).viewport = viewport;
             (activeToolInstance as any).context = { viewport };
           }
-          // Live document injection — CalibrationRulerTool uses this for
-          // endpoint snapping (snap wins if available, else raw click).
           (activeToolInstance as any).__document = renderPlan;
           if (typeof activeToolInstance.renderOverlay === 'function') {
             activeToolInstance.renderOverlay(ctx);

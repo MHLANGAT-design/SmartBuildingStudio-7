@@ -69,8 +69,8 @@ export const EmergencySidebar: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <ComplianceGroup />
               <div style={{ color: '#64748B', fontSize: '11px', lineHeight: 1.5 }}>
-                Add evacuation routes here. Routes are validated against the 30m
-                travel-distance limit when you run the simulation from the Simulation tab.
+                Add evacuation routes here. Routes are validated for wall crossings
+                and 30m travel distance. See the Routes tab for per-route results.
               </div>
             </div>
           )}

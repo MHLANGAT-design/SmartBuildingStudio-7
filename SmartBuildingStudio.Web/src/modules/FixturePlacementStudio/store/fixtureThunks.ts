@@ -40,11 +40,18 @@ import {
   type Fixture,
 } from '@/modules/FixturePlacementStudio/models/Fixture';
 import type { Zone } from '@/modules/FixturePlacementStudio/models/Zone';
+import {
+  bumpDocumentVersion,
+  recordDocumentLoaded,
+} from '@/modules/Shared/DocumentVersion/documentVersionSlice';
+import { selectCurrentDocumentVersion } from '@/modules/Shared/DocumentVersion/selectDocumentFresh';
 
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 export function loadDocumentThunk(context: ActivationContext) {
-  return async (dispatch: AppDispatch) => {
+  return async (dispatch: AppDispatch, getState: () => RootState) => {
+    const versionAtLoad = selectCurrentDocumentVersion(getState());
+
     dispatch(beginLoad({ activationContext: context }));
 
     const outcome = await FixtureDocumentManager.load(context);
@@ -73,10 +80,11 @@ export function loadDocumentThunk(context: ActivationContext) {
       })
     );
 
-    // Load the default rule set for the session. Rules are independent of
-    // the document — every session starts with the same baseline set —
-    // but we load it here because the session is what owns the state.
     dispatch(setRuleSet({ ruleSet: DEFAULT_RULE_SET }));
+
+    dispatch(
+      recordDocumentLoaded({ documentId: context.documentId, version: versionAtLoad })
+    );
   };
 }
 
@@ -114,6 +122,7 @@ export function saveDocumentThunk() {
         zones: freshLayout.zones,
         label: 'Post-save',
       });
+      dispatch(bumpDocumentVersion());
       return;
     }
 
@@ -131,7 +140,7 @@ export function saveDocumentThunk() {
   };
 }
 
-// ─── Calculations ─────────────────────────────────────────────────────────────
+// ─── Calculations ────────────────────────────────────────────────────────────
 
 export function runCalculationThunk(args: {
   kind: CalculationKind;
@@ -193,7 +202,7 @@ export function runCalculationThunk(args: {
   };
 }
 
-// ─── Validation ───────────────────────────────────────────────────────────────
+// ─── Validation ──────────────────────────────────────────────────────────────
 
 export function runValidationThunk() {
   return async (dispatch: AppDispatch, getState: () => RootState) => {
@@ -226,22 +235,8 @@ export function runValidationThunk() {
   };
 }
 
-// ─── Import ───────────────────────────────────────────────────────────────────
+// ─── Import ──────────────────────────────────────────────────────────────────
 
-/**
- * Import fixtures and zones from a JSON payload previously produced by
- * ExportService.toJson.
- *
- * Behaviour:
- *   • Validates shape (fixtures array, zones array).
- *   • Regenerates every fixture id and remaps zone membership
- *     accordingly. This prevents id collisions when the file was
- *     exported from the same document.
- *   • Dispatches mergeFixtures, which the history middleware records
- *     so the import can be undone.
- *
- * Returns a summary the dialog can display.
- */
 export function importFixturesThunk(payload: unknown) {
   return async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState();
@@ -250,9 +245,8 @@ export function importFixturesThunk(payload: unknown) {
       throw new Error('No layout loaded — cannot import.');
     }
 
-    const parsed = parseImportPayload(payload);
+    const parsed = parseImportPayload(payload, layout.documentId);
 
-    // Map old ids → new ids for fixtures.
     const idMap = new Map<string, string>();
     const newFixtures = parsed.fixtures.map((f) => {
       const newId = `fx-imp-${nanoid(10)}`;
@@ -260,10 +254,10 @@ export function importFixturesThunk(payload: unknown) {
       return { ...f, id: newId, documentId: layout.documentId };
     });
 
-    // Remap zone membership. Zones themselves also get new ids.
     const newZones = parsed.zones.map((z) => ({
       ...z,
       id: `zone-imp-${nanoid(10)}`,
+      documentId: layout.documentId,
       memberFixtureIds: z.memberFixtureIds
         .map((oldId) => idMap.get(oldId))
         .filter((id): id is string => typeof id === 'string'),
@@ -279,7 +273,7 @@ export function importFixturesThunk(payload: unknown) {
   };
 }
 
-// ─── Import parsing ───────────────────────────────────────────────────────────
+// ─── Import parsing ──────────────────────────────────────────────────────────
 
 interface ParsedImport {
   documentId: string;
@@ -287,7 +281,7 @@ interface ParsedImport {
   zones: Zone[];
 }
 
-function parseImportPayload(raw: unknown): ParsedImport {
+function parseImportPayload(raw: unknown, layoutDocumentId: string): ParsedImport {
   if (!raw || typeof raw !== 'object') {
     throw new Error('Import file is not a JSON object.');
   }
@@ -302,9 +296,10 @@ function parseImportPayload(raw: unknown): ParsedImport {
     .filter((f): f is Fixture => f !== null);
 
   const zones: Zone[] = Array.isArray(obj.zones)
-    ? (obj.zones as any[]).map((z) => ({
+    ? (obj.zones as any[]).map((z): Zone => ({
         id: String(z?.id ?? `zone-${nanoid(6)}`),
         name: String(z?.name ?? 'Imported Zone'),
+        documentId: String(z?.documentId ?? layoutDocumentId),
         kind: z?.kind ?? 'control',
         mode: z?.mode ?? 'auto',
         memberFixtureIds: Array.isArray(z?.memberFixtureIds)

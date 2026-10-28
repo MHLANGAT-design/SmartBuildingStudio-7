@@ -38,6 +38,8 @@ export class CanvasRenderer {
   private static readonly DOOR_COLOR = '#F59E0B';
   private static readonly WINDOW_COLOR = '#38BDF8';
   private static readonly RAW_GEOMETRY_COLOR = '#475569';
+  private static readonly EXIT_ROUTE_COMPLIANT_COLOR = '#10B981';
+  private static readonly EXIT_ROUTE_NON_COMPLIANT_COLOR = '#EF4444';
 
   public static clearAndDraw(
     ctx: CanvasRenderingContext2D,
@@ -122,6 +124,7 @@ export class CanvasRenderer {
     const areFixturesVisible = this.isLayerVisible('fixtures', layers);
     const areRoomsVisible = this.isLayerVisible('rooms', layers);
     const areRawVisible = this.isLayerVisible('rawgeometry', layers);
+    const areExitRoutesVisible = this.isLayerVisible('exitRoutes', layers);
 
     // ── Phase 4: apply world transform ─────────────────────────────────
     ctx.save();
@@ -190,6 +193,51 @@ export class CanvasRenderer {
       ).toLowerCase();
 
       const normalizedType = rawType.replace(/[_\s-]/g, '');
+
+      // ── Exit Route elements ──────────────────────────────────────────
+      if (normalizedType === 'exitroute' || (element as any).isExitRoute === true) {
+        if (!areExitRoutesVisible) continue;
+
+        const pts = element.points || (element as any).vertices || [];
+        if (!Array.isArray(pts) || pts.length < 2) continue;
+
+        const isCompliant = Boolean((element as any).isCompliant);
+        const routeColor = isCompliant
+          ? CanvasRenderer.EXIT_ROUTE_COMPLIANT_COLOR
+          : CanvasRenderer.EXIT_ROUTE_NON_COMPLIANT_COLOR;
+        const isSelected = selectedId !== null && element.id === selectedId;
+        const isHovered =
+          !isSelected && hoveredId !== null && element.id === hoveredId;
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([8 / finalScale, 4 / finalScale]);
+
+        if (isSelected) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+          ctx.lineWidth = worldLineWidth * 5;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = isSelected
+          ? '#38BDF8'
+          : isHovered
+          ? CanvasRenderer.HOVER_COLOR
+          : routeColor;
+        ctx.lineWidth = worldLineWidth * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        continue;
+      }
+
       const isFixtureElement =
         normalizedType === 'fixture' ||
         normalizedType === 'fixtures' ||
@@ -507,6 +555,11 @@ export class CanvasRenderer {
     if (layerKey === 'rooms' && hiddenMap['room'] === true) return false;
     if (layerKey === 'fixtures' && hiddenMap['fixture'] === true) return false;
     if (layerKey === 'rawgeometry' && hiddenMap['rawgeometry'] === true) return false;
+    if (layerKey === 'exitRoutes') {
+      if (hiddenMap['exitRoutes'] === true) return false;
+      if (hiddenMap['exitroute'] === true) return false;
+      if (hiddenMap['exitRoute'] === true) return false;
+    }
 
     return true;
   }

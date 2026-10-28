@@ -7,20 +7,22 @@ import { EmergencyInspector } from '@/modules/EmergencyLighting/Inspector/Emerge
 import { EmergencyCanvas } from '@/modules/EmergencyLighting/Canvas/EmergencyCanvas';
 import { EmergencyToolbar } from '@/modules/EmergencyLighting/Toolbar/EmergencyToolbar';
 import { loadEmergencyFloorplan } from '@/modules/EmergencyLighting/store/emergencyThunks';
+import { selectDocumentFresh } from '@/modules/Shared/DocumentVersion/selectDocumentFresh';
 
 export const EmergencyLightingPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const floorplanStatus = useAppSelector((s: any) => s.emergency.floorplan.status);
   const floorplanError = useAppSelector((s: any) => s.emergency.floorplan.error);
-  const floorplanModel = useAppSelector((s: any) => s.emergency.floorplan.model);
 
   const floorplanId = new URLSearchParams(window.location.search).get('documentId') || '';
 
+  const isFresh = useAppSelector(selectDocumentFresh(floorplanId));
+
   useEffect(() => {
     if (!floorplanId) return;
-    if (floorplanModel?.documentId === floorplanId) return;
+    if (isFresh) return;
     dispatch(loadEmergencyFloorplan(floorplanId));
-  }, [dispatch, floorplanId, floorplanModel]);
+  }, [dispatch, floorplanId, isFresh]);
 
   if (!floorplanId) {
     return <div style={{ padding: 20, color: '#EF4444', height: '100%', background: '#090D16' }}>Missing documentId</div>;
@@ -45,7 +47,6 @@ export const EmergencyLightingPage: React.FC = () => {
         background: '#090D16',
       }}
     >
-      {/* Toolbar spans the full width above the three-panel layout */}
       <EmergencyToolbar />
 
       <div

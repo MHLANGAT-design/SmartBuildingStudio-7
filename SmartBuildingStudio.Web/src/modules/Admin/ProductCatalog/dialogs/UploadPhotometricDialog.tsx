@@ -8,8 +8,9 @@
 //   3. Client-side parser shows a preview (lumens, candela, samples)
 //   4. User clicks Upload → POST multipart to
 //      /api/v1/product-catalog/photometric-files/{productId}
-//   5. On success: invalidate the FPS photometric resolver cache so the
-//      next Calculate Lux refetches, show success, allow closing.
+//   5. On success: clear ALL photometric caches (FPS + EmergencyLighting
+//      + any future module) via the shared registry, so the next
+//      calculation anywhere in the app fetches the fresh distribution.
 //
 // The preview parser is client-side only. The backend re-parses after
 // upload and is authoritative.
@@ -24,7 +25,7 @@ import {
   isIesPreviewSuccess,
   type IesPreviewOutcome,
 } from "../lib/iesClientParser";
-import { resetPhotometricResolverCache } from "@/modules/FixturePlacementStudio/store/fixtureSelectors";
+import { clearAllPhotometricCaches } from "@/modules/Shared/Photometry/photometricCacheRegistry";
 
 export interface UploadPhotometricDialogProps {
   open: boolean;
@@ -199,9 +200,12 @@ export const UploadPhotometricDialog: React.FC<UploadPhotometricDialogProps> = (
 
       const result = body as UploadResponse;
 
-      // Invalidate the resolver cache so the next Calculate Lux sees the
-      // newly-uploaded data instead of the stale 404/null result.
-      resetPhotometricResolverCache();
+      // Clear every registered photometric cache — FPS's resolver,
+      // EmergencyLighting's resolver, and any future module that
+      // registers via photometricCacheRegistry. Ensures every
+      // consumer fetches the freshly-uploaded distribution instead
+      // of the previously-cached 404/null result.
+      clearAllPhotometricCaches();
 
       setUploadSuccess(result);
       onUploaded?.({
@@ -404,7 +408,7 @@ export const UploadPhotometricDialog: React.FC<UploadPhotometricDialogProps> = (
               ✅ Uploaded "{file?.name}" — version {uploadSuccess.version} ·{" "}
               {uploadSuccess.sampleCount} samples · {uploadSuccess.totalLumens} lm
               <div style={{ fontSize: "10px", color: "#05FFC4", marginTop: "6px", opacity: 0.75 }}>
-                Resolver cache cleared — the next Calculate Lux will use this data.
+                Photometric caches cleared — the next calculation in any module will use this data.
               </div>
             </div>
           )}

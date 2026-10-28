@@ -1,8 +1,7 @@
 ﻿// src/modules/DaliDesigner/Canvas/DaliCanvas.tsx
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/store/hooks";
 
 import { CanvasRenderer } from "@/modules/FloorPlanDesigner/Components/Canvas/CanvasRenderer";
 import {
@@ -45,7 +44,6 @@ const MOUSE_LEFT = 0;
 const MOUSE_MIDDLE = 1;
 const MOUSE_RIGHT = 2;
 
-const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 20;
 const ZOOM_STEP = 0.15;
 
@@ -55,9 +53,6 @@ const DOUBLE_CLICK_DEVICE_HIT_PX = 24;
 const DOUBLE_CLICK_DEVICE_BOX = 20;
 
 export function DaliCanvas() {
-  const { floorplanId } = useParams<{ floorplanId: string }>();
-  const dispatch = useAppDispatch();
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const transformRef = useRef<ViewTransform | null>(null);
@@ -89,7 +84,6 @@ export function DaliCanvas() {
   const rawGeometry = useAppSelector(selectRawGeometry);
   const layers = useAppSelector(selectLayerVisibility);
 
-  // ── Combined model (floorplan + lazy raw geometry) ────────────────
   const combinedModel = useMemo(() => {
     if (!model) return null;
     const elements = [...model.elements];
@@ -205,7 +199,6 @@ export function DaliCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Bounds — now uses combinedModel so raw geometry extends the view when enabled
   const bounds = useMemo(() => {
     let b = { minX: -10000, minY: -10000, maxX: 10000, maxY: 10000 };
     const pts: Array<{ x: number; y: number }> = [];
@@ -306,6 +299,7 @@ export function DaliCanvas() {
               rooms: true,
               rawgeometry: _rawVisible,
               fixtures: false,
+              exitRoutes: false,
             },
             selectedId: null,
             hoveredId: null,

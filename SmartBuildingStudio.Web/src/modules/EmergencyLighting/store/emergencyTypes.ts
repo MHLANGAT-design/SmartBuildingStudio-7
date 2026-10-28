@@ -12,6 +12,19 @@ export interface ComplianceIssue {
   fixtureId?: string;
 }
 
+export interface EmergencyDocument {
+  id: string;
+  projectId: string;
+  floorplanId: string;
+  name: string;
+  revision: number;
+  updatedAt: string;
+  exitRoutes: EvacuationRoute[];
+  complianceIssues: ComplianceIssue[];
+  lastRunAt: string | null;
+  simulationStatus: 'idle' | 'running' | 'complete' | 'error';
+}
+
 export interface EmergencyState {
   floorplan: {
     model: any | null;
@@ -33,6 +46,11 @@ export interface EmergencyState {
     status: 'idle' | 'running' | 'complete' | 'error';
     error: string | null;
     lastRunAt: string | null;
+  };
+  routesSave: {
+    status: 'idle' | 'saving' | 'saved' | 'error';
+    error: string | null;
+    lastSavedAt: string | null;
   };
   routes: EvacuationRoute[];
   routeDrawing: {
