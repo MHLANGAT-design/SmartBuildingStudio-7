@@ -54,47 +54,6 @@ export const loadRawGeometry = createAsyncThunk<
 });
 
 // =====================================================================
-// Simulation
-// =====================================================================
-
-export const runEmergencySimulation = createAsyncThunk<
-  { issues: ComplianceIssue[]; timestamp: string },
-  void,
-  ThunkApiConfig
->('emergency/runSimulation', async (_, { getState, rejectWithValue }) => {
-  const state = getState() as any;
-  const emergency = state.emergency;
-  const model = emergency.floorplan.model;
-  if (!model) return rejectWithValue('Floorplan not loaded. Cannot run simulation.');
-
-  try {
-    const emergencyDoc: EmergencyDocument = {
-      id: model.documentId ?? '',
-      projectId: '',
-      floorplanId: model.documentId ?? '',
-      name: model.documentName ?? 'Emergency Study',
-      revision: 0,
-      updatedAt: new Date().toISOString(),
-      exitRoutes: emergency.routes ?? [],
-      complianceIssues: [],
-      lastRunAt: null,
-      simulationStatus: 'idle',
-    } as any;
-
-    // Pull heatmap data (if computed) so visibility analysis can run.
-    // If it's null the engine emits a single info issue asking the user
-    // to compute it — no per-room errors, since without lux data we
-    // can't judge.
-    const heatmapData: PhotometricData | null = emergency.heatmap?.data ?? null;
-
-    const issues = ComplianceEngine.validate(emergencyDoc as any, model, heatmapData);
-    return { issues, timestamp: new Date().toISOString() };
-  } catch (error: any) {
-    return rejectWithValue(error?.message ?? 'Simulation failed');
-  }
-});
-
-// =====================================================================
 // Heatmap — FPS PhotometricService
 // =====================================================================
 
@@ -139,6 +98,51 @@ export const runEmergencyHeatmap = createAsyncThunk<
     return data;
   } catch (error: any) {
     return rejectWithValue(error?.message ?? 'Heatmap computation failed.');
+  }
+});
+
+// =====================================================================
+// Simulation — auto-computes heatmap if missing
+// =====================================================================
+
+export const runEmergencySimulation = createAsyncThunk<
+  { issues: ComplianceIssue[]; timestamp: string },
+  void,
+  ThunkApiConfig
+>('emergency/runSimulation', async (_, { getState, dispatch, rejectWithValue }) => {
+  const state = getState() as any;
+  const emergency = state.emergency;
+  const model = emergency.floorplan.model;
+  if (!model) return rejectWithValue('Floorplan not loaded. Cannot run simulation.');
+
+  try {
+    const emergencyDoc: EmergencyDocument = {
+      id: model.documentId ?? '',
+      projectId: '',
+      floorplanId: model.documentId ?? '',
+      name: model.documentName ?? 'Emergency Study',
+      revision: 0,
+      updatedAt: new Date().toISOString(),
+      exitRoutes: emergency.routes ?? [],
+      complianceIssues: [],
+      lastRunAt: null,
+      simulationStatus: 'idle',
+    } as any;
+
+    // Auto-compute heatmap if missing, so ▶ Run Simulation is a
+    // single click that also evaluates visibility.
+    let heatmapData: PhotometricData | null = emergency.heatmap?.data ?? null;
+    if (!heatmapData) {
+      const result = await dispatch(runEmergencyHeatmap({}) as any);
+      if (runEmergencyHeatmap.fulfilled.match(result)) {
+        heatmapData = result.payload;
+      }
+    }
+
+    const issues = ComplianceEngine.validate(emergencyDoc as any, model, heatmapData);
+    return { issues, timestamp: new Date().toISOString() };
+  } catch (error: any) {
+    return rejectWithValue(error?.message ?? 'Simulation failed');
   }
 });
 

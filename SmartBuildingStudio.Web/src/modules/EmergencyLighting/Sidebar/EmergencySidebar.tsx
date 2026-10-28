@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { toggleLayer, setActivePanel } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { loadRawGeometry } from '@/modules/EmergencyLighting/store/emergencyThunks';
 import { SimulationResultsPanel } from '@/modules/EmergencyLighting/Sidebar/SimulationResultsPanel';
+import { RoutesListPanel } from '@/modules/EmergencyLighting/Sidebar/RoutesListPanel';
 import { ComplianceGroup } from '@/modules/EmergencyLighting/Toolbar/groups/ComplianceGroup';
 
 export const EmergencySidebar: React.FC = () => {
@@ -73,7 +74,7 @@ export const EmergencySidebar: React.FC = () => {
               </div>
             </div>
           )}
-          {activePanel === 'routes' && <div style={{ color: '#64748B', fontSize: '11px' }}>Evacuation routes list coming soon.</div>}
+          {activePanel === 'routes' && <RoutesListPanel />}
         </div>
       </div>
     </div>

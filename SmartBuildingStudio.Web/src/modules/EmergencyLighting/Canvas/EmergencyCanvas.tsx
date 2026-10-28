@@ -1,7 +1,7 @@
 // src/modules/EmergencyLighting/Canvas/EmergencyCanvas.tsx
 
 import React, { useEffect, useRef, useMemo } from 'react';
-import { useAppSelector } from '@/Application/ConfigureStore';
+import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { CanvasRenderer } from '@/modules/FloorPlanDesigner/Components/Canvas/CanvasRenderer';
 import { useEmergencyCanvasPan } from '@/modules/EmergencyLighting/hooks/useEmergencyCanvasPan';
 import { useEmergencyCanvasZoom } from '@/modules/EmergencyLighting/hooks/useEmergencyCanvasZoom';
@@ -9,11 +9,18 @@ import { useEvacuationRoutes } from '@/modules/EmergencyLighting/hooks/useEvacua
 import { EvacuationRouteLayer } from '@/modules/EmergencyLighting/Canvas/EvacuationRouteLayer';
 import { HeatmapLayer } from '@/modules/EmergencyLighting/Canvas/HeatmapLayer';
 import { HeatmapLegend } from '@/modules/EmergencyLighting/Canvas/HeatmapLegend';
+import {
+  setSelectedRouteId,
+  clearSelectedRouteId,
+  removeEvacuationRouteAction,
+} from '@/modules/EmergencyLighting/store/emergencySlice';
+import { runEmergencySimulation } from '@/modules/EmergencyLighting/store/emergencyThunks';
 import { useZoomSurface } from '@/modules/Shared/Zoom/zoomRegistry';
 import type { ZoomableSurface } from '@/modules/Shared/Zoom/zoomSurface';
 
 const OUTLIER_RADIUS = 500_000;
 const MIN_CANVAS_DIM = 200;
+const ROUTE_HIT_TOLERANCE_PX = 10;
 
 function getPoints(el: any): Array<{ x: number; y: number }> {
   const raw =
@@ -50,12 +57,30 @@ function computeArea(pts: { x: number; y: number }[]): number {
   return Math.abs(area) / 2 / 1_000_000;
 }
 
+/** Distance from point P to segment AB in screen pixels. */
+function pointToSegmentPx(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
 export const EmergencyCanvas: React.FC = () => {
+  const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const floorplanModel = useAppSelector((s: any) => s.emergency.floorplan.model);
   const rawGeometry = useAppSelector((s: any) => s.emergency.rawGeometry.elements);
   const layers = useAppSelector((s: any) => s.emergency.layerVisibility);
+  const routes = useAppSelector((s: any) => s.emergency.routes || []);
+  const selectedRouteId = useAppSelector((s: any) => s.emergency.ui.selectedRouteId);
 
   const routeTool = useEvacuationRoutes();
 
@@ -95,7 +120,6 @@ export const EmergencyCanvas: React.FC = () => {
     return { ...floorplanModel, elements };
   }, [floorplanModel, rawGeometry, layers.rawgeometry]);
 
-  // ── Projection math shared by the canvas loop and the SVG overlay ──
   const getProjection = (canvasWidth: number, canvasHeight: number) => {
     if (!combinedModel) return null;
 
@@ -145,7 +169,6 @@ export const EmergencyCanvas: React.FC = () => {
     };
   };
 
-  // ── Main render effect ─────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !combinedModel) return;
@@ -237,8 +260,49 @@ export const EmergencyCanvas: React.FC = () => {
   };
 
   const onClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!routeTool.isDrawing) return;
+    if (!routeTool.isDrawing) {
+      // Selection hit-test: click on a route line to select it.
+      // Click on empty space to clear selection.
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const screenX = (e.clientX - rect.left) * dpr;
+      const screenY = (e.clientY - rect.top) * dpr;
+
+      const proj = getProjection(canvas.width, canvas.height);
+      if (!proj) return;
+
+      const clickPoint = { x: screenX, y: screenY };
+      const tolerancePx = ROUTE_HIT_TOLERANCE_PX * dpr;
+
+      let hitRouteId: string | null = null;
+      let closestDist = Infinity;
+
+      for (const route of routes) {
+        const pts = Array.isArray(route.points) && route.points.length >= 2
+          ? route.points
+          : [route.startNode, route.endNode];
+        const screenPts = pts.map(proj.worldToScreen);
+        for (let i = 1; i < screenPts.length; i++) {
+          const dist = pointToSegmentPx(clickPoint, screenPts[i - 1], screenPts[i]);
+          if (dist < tolerancePx && dist < closestDist) {
+            closestDist = dist;
+            hitRouteId = route.id;
+          }
+        }
+      }
+
+      if (hitRouteId) {
+        dispatch(setSelectedRouteId(hitRouteId === selectedRouteId ? null : hitRouteId));
+      } else if (selectedRouteId) {
+        dispatch(clearSelectedRouteId());
+      }
+      return;
+    }
+
+    // Drawing mode: place a route point.
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -285,23 +349,26 @@ export const EmergencyCanvas: React.FC = () => {
     routeTool.moveCanvas(worldPoint);
   };
 
-  // ── Escape / Enter while drawing ──────────────────────────────────
+  // ── Escape / Enter while drawing; Delete while a route is selected ──
   useEffect(() => {
-    if (!routeTool.isDrawing) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') routeTool.cancelRoute();
-      if (e.key === 'Enter') routeTool.commitPendingRoute();
+      if (routeTool.isDrawing) {
+        if (e.key === 'Escape') routeTool.cancelRoute();
+        if (e.key === 'Enter') routeTool.commitPendingRoute();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRouteId) {
+        // Don't steal Backspace when focus is in an input
+        const tag = (document.activeElement as HTMLElement | null)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        dispatch(removeEvacuationRouteAction(selectedRouteId));
+        dispatch(runEmergencySimulation() as any);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [routeTool.isDrawing, routeTool]);
+  }, [routeTool.isDrawing, routeTool, selectedRouteId, dispatch]);
 
-  // ── SVG overlay projection ────────────────────────────────────────
-  // Computed from the PARENT element (not the canvas) so the first
-  // render already has the real dimensions. The render effect resizes
-  // the canvas afterward; if we read canvas.width/height here we'd get
-  // the default 300×150 on the first pass and the heatmap/route dots
-  // would be off-canvas.
   const proj = useMemo(() => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -346,8 +413,6 @@ export const EmergencyCanvas: React.FC = () => {
             height: '100%',
           }}
         >
-          {/* Heatmap renders below routes — routes are the primary
-              interactive element and should stay legible on top. */}
           <HeatmapLayer worldToScreen={proj.worldToScreen} />
           <EvacuationRouteLayer worldToScreen={proj.worldToScreen} />
 
@@ -386,9 +451,6 @@ export const EmergencyCanvas: React.FC = () => {
             </g>
           )}
 
-          {/* Legend renders last so it sits above the heatmap cells and
-              the route layer. Anchored to the top-left of the visible
-              canvas — unaffected by pan/zoom. */}
           <HeatmapLegend offsetX={16} offsetY={16} />
         </svg>
       )}

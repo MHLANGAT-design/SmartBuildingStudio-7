@@ -45,6 +45,7 @@ const initialState: EmergencyState = {
     activePanel: 'simulation',
     isSimulationDialogOpen: false,
     isReportDialogOpen: false,
+    selectedRouteId: null,
   },
 };
 
@@ -67,6 +68,12 @@ const emergencySlice = createSlice({
     setReportDialogOpen(state, action: PayloadAction<boolean>) {
       state.ui.isReportDialogOpen = action.payload;
     },
+    setSelectedRouteId(state, action: PayloadAction<string | null>) {
+      state.ui.selectedRouteId = action.payload;
+    },
+    clearSelectedRouteId(state) {
+      state.ui.selectedRouteId = null;
+    },
     clearSimulation(state) {
       state.simulation = { issues: [], status: 'idle', error: null, lastRunAt: null };
     },
@@ -78,9 +85,17 @@ const emergencySlice = createSlice({
     },
     removeEvacuationRouteAction(state, action: PayloadAction<string>) {
       state.routes = state.routes.filter((r) => r.id !== action.payload);
+      if (state.ui.selectedRouteId === action.payload) {
+        state.ui.selectedRouteId = null;
+      }
+    },
+    renameEvacuationRouteAction(state, action: PayloadAction<{ id: string; name: string }>) {
+      const route = state.routes.find((r) => r.id === action.payload.id);
+      if (route) route.name = action.payload.name;
     },
     clearRoutes(state) {
       state.routes = [];
+      state.ui.selectedRouteId = null;
     },
     beginRouteDrawing(state) {
       state.routeDrawing = {
@@ -123,6 +138,7 @@ const emergencySlice = createSlice({
         state.rawGeometry.status = 'idle';
         state.simulation = { issues: [], status: 'idle', error: null, lastRunAt: null };
         state.heatmap = { data: null, status: 'idle', error: null, lastRunAt: null };
+        state.ui.selectedRouteId = null;
       })
       .addCase(loadEmergencyFloorplan.rejected, (state, action) => {
         state.floorplan.status = 'error';
@@ -176,10 +192,13 @@ export const {
   setActivePanel,
   setSimulationDialogOpen,
   setReportDialogOpen,
+  setSelectedRouteId,
+  clearSelectedRouteId,
   clearSimulation,
   clearHeatmap,
   addEvacuationRouteAction,
   removeEvacuationRouteAction,
+  renameEvacuationRouteAction,
   clearRoutes,
   beginRouteDrawing,
   cancelRouteDrawing,

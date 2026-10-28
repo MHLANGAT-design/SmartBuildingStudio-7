@@ -54,5 +54,6 @@ export interface EmergencyState {
     activePanel: 'simulation' | 'compliance' | 'routes';
     isSimulationDialogOpen: boolean;
     isReportDialogOpen: boolean;
+    selectedRouteId: string | null;
   };
 }

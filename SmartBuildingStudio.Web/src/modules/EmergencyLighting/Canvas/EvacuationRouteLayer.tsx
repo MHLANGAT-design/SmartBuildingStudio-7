@@ -10,6 +10,7 @@ interface EvacuationRouteLayerProps {
 export const EvacuationRouteLayer: React.FC<EvacuationRouteLayerProps> = ({ worldToScreen }) => {
   const routes = useAppSelector((s: any) => s.emergency.routes || []);
   const layerVisible = useAppSelector((s: any) => s.emergency.layerVisibility?.exitRoutes);
+  const selectedRouteId = useAppSelector((s: any) => s.emergency.ui.selectedRouteId);
 
   if (!layerVisible) return null;
 
@@ -31,22 +32,38 @@ export const EvacuationRouteLayer: React.FC<EvacuationRouteLayerProps> = ({ worl
         const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
         const color = route.isCompliant ? '#10B981' : '#EF4444';
+        const isSelected = route.id === selectedRouteId;
+        const hasSelection = !!selectedRouteId;
+        const groupOpacity = hasSelection && !isSelected ? 0.4 : 1;
 
         return (
-          <g key={route.id}>
+          <g key={route.id} opacity={groupOpacity}>
+            {isSelected && (
+              <polyline
+                points={polylinePoints}
+                fill="none"
+                stroke="#38BDF8"
+                strokeWidth={12}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                strokeDasharray="8 4"
+                opacity={0.55}
+              />
+            )}
+
             <polyline
               points={polylinePoints}
               fill="none"
               stroke={color}
-              strokeWidth={4}
+              strokeWidth={isSelected ? 6 : 4}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-            <circle cx={screenPts[0].x} cy={screenPts[0].y} r={6} fill={color} />
+            <circle cx={screenPts[0].x} cy={screenPts[0].y} r={isSelected ? 8 : 6} fill={color} />
             <circle
               cx={screenPts[screenPts.length - 1].x}
               cy={screenPts[screenPts.length - 1].y}
-              r={6}
+              r={isSelected ? 8 : 6}
               fill={color}
             />
 
