@@ -4,6 +4,7 @@ import { ThunkApiConfig } from "@/Application/ConfigureStore";
 import * as FloorPlanSlice from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 import { API_ROUTES } from "@/Application/ApiRoutes";
 import { BackendPayloadMapper } from "@/modules/FloorPlanDesigner/Store/BackendPayloadMapper";
+import { bumpDocumentVersion } from "@/modules/Shared/DocumentVersion/documentVersionSlice";
 
 // ─── FETCH ────────────────────────────────────────────────────────────────────
 export const openDrawing = createAsyncThunk<
@@ -138,6 +139,12 @@ export const saveDrawing = createAsyncThunk<
 
       dispatch(FloorPlanSlice.markClean());
       dispatch(FloorPlanSlice.markSaved());
+
+      // Bump the shared document version so other modules (Emergency,
+      // DALI, FPS) know the floorplan changed and refetch on their next
+      // mount. Must run after the PUT succeeds — bumping before would
+      // signal a change that didn't actually persist if the save fails.
+      dispatch(bumpDocumentVersion());
 
       // No global writes here either — the instance is rebuilt from the
       // updated Redux state by UseFloorPlanDesignerDocument.

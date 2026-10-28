@@ -59,6 +59,9 @@ const emergencySlice = createSlice({
   name: 'emergency',
   initialState,
   reducers: {
+    resetEmergency() {
+      return initialState;
+    },
     setViewport(state, action: PayloadAction<Partial<{ zoom: number; offsetX: number; offsetY: number }>>) {
       state.viewport = { ...state.viewport, ...action.payload };
     },
@@ -208,6 +211,7 @@ const emergencySlice = createSlice({
 });
 
 export const {
+  resetEmergency,
   setViewport,
   toggleLayer,
   setActivePanel,
