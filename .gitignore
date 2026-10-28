@@ -47,3 +47,7 @@ appsettings.*.Local.json
 # ════════════════════════════════════════════════════════════════
 BackendModules/ProductCatalogService/ProductCatalogService.Api/App_Data/*
 !BackendModules/ProductCatalogService/ProductCatalogService.Api/App_Data/.gitkeep
+
+# Test artifacts from fixture import flow
+*.ies
+
