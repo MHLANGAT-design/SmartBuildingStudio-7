@@ -1,28 +1,43 @@
-// src/modules/EmergencyLighting/EmergencyLightingPage.tsx
+// EmergencyLightingPage.tsx
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { EmergencySidebar } from '@/modules/EmergencyLighting/Sidebar/EmergencySidebar';
 import { EmergencyInspector } from '@/modules/EmergencyLighting/Inspector/EmergencyInspector';
 import { EmergencyCanvas } from '@/modules/EmergencyLighting/Canvas/EmergencyCanvas';
 import { EmergencyToolbar } from '@/modules/EmergencyLighting/Toolbar/EmergencyToolbar';
 import { loadEmergencyFloorplan } from '@/modules/EmergencyLighting/store/emergencyThunks';
+import { resetEmergency } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { selectDocumentFresh } from '@/modules/Shared/DocumentVersion/selectDocumentFresh';
 
 export const EmergencyLightingPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const floorplanStatus = useAppSelector((s: any) => s.emergency.floorplan.status);
   const floorplanError = useAppSelector((s: any) => s.emergency.floorplan.error);
+  const loadedDocId = useAppSelector((s: any) => s.emergency.floorplan.model?.documentId);
 
   const floorplanId = new URLSearchParams(window.location.search).get('documentId') || '';
 
+  const sliceMatchesUrl = !!loadedDocId && !!floorplanId && loadedDocId === floorplanId;
+
+  // Ask the version counter: has anything saved since this doc was loaded?
   const isFresh = useAppSelector(selectDocumentFresh(floorplanId));
 
+  // Reset stale state before loading a different document
+  useLayoutEffect(() => {
+    if (!floorplanId) return;
+    if (sliceMatchesUrl) return;
+    dispatch(resetEmergency());
+  }, [dispatch, floorplanId, sliceMatchesUrl]);
+
+  // Load when either:
+  //   - the loaded document is different from the URL's document (transition), OR
+  //   - the same document is loaded but the version has advanced (another module saved)
   useEffect(() => {
     if (!floorplanId) return;
-    if (isFresh) return;
+    if (sliceMatchesUrl && isFresh) return;
     dispatch(loadEmergencyFloorplan(floorplanId));
-  }, [dispatch, floorplanId, isFresh]);
+  }, [dispatch, floorplanId, sliceMatchesUrl, isFresh]);
 
   if (!floorplanId) {
     return <div style={{ padding: 20, color: '#EF4444', height: '100%', background: '#090D16' }}>Missing documentId</div>;
