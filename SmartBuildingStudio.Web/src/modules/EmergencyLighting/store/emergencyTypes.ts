@@ -10,6 +10,11 @@ export interface ComplianceIssue {
   message: string;
   location: { x: number; y: number };
   fixtureId?: string;
+
+  segmentIndex?: number;
+  segmentStart?: { x: number; y: number };
+  segmentEnd?: { x: number; y: number };
+  barrierKind?: 'wall' | 'window';
 }
 
 export interface EmergencyDocument {
@@ -24,6 +29,20 @@ export interface EmergencyDocument {
   lastRunAt: string | null;
   simulationStatus: 'idle' | 'running' | 'complete' | 'error';
 }
+
+export interface FocusRequest {
+  routeId: string;
+  segmentIndex: number;
+  nonce: number;
+}
+
+export type EmergencySidebarSectionKey =
+  | 'layers'
+  | 'routes'
+  | 'emergencyFixtures'
+  | 'exitSigns'
+  | 'zones'
+  | 'compliance';
 
 export interface EmergencyState {
   floorplan: {
@@ -51,6 +70,7 @@ export interface EmergencyState {
     status: 'idle' | 'saving' | 'saved' | 'error';
     error: string | null;
     lastSavedAt: string | null;
+    isDirty: boolean;
   };
   routes: EvacuationRoute[];
   routeDrawing: {
@@ -68,10 +88,14 @@ export interface EmergencyState {
     exitSigns: boolean;
     rawgeometry: boolean;
   };
+  sidebarExpansion: Partial<Record<EmergencySidebarSectionKey, boolean>>;
   ui: {
     activePanel: 'simulation' | 'compliance' | 'routes';
     isSimulationDialogOpen: boolean;
     isReportDialogOpen: boolean;
     selectedRouteId: string | null;
+    selectedEmergencyFixtureId: string | null;
+    selectedZoneId: string | null;
+    focusRequest: FocusRequest | null;
   };
 }

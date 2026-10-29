@@ -4,6 +4,10 @@ import { API_ROUTES } from '@/Application/ApiRoutes';
 import { BackendPayloadMapper } from '@/modules/FloorPlanDesigner/Store/BackendPayloadMapper';
 import { transformDbSchemaToCanvasSchema } from '@/modules/FloorPlanDesigner/Utils/DatabaseToCanvasTransformer';
 import { extractRoutesFromElements } from '@/modules/EmergencyLighting/Document/projectRoutes';
+import type { Fixture } from '@/modules/FixturePlacementStudio/models/Fixture';
+import { deserializeFixture } from '@/modules/FixturePlacementStudio/models/Fixture';
+import type { Zone } from '@/modules/FixturePlacementStudio/models/Zone';
+import { deserializeZone } from '@/modules/FixturePlacementStudio/models/Zone';
 
 export interface EmergencyFloorplanRenderModel {
   documentId: string;
@@ -14,6 +18,10 @@ export interface EmergencyFloorplanRenderModel {
   windows: any[];
   rooms: any[];
   electricalFixtures: any[];
+  /** FPS-typed fixtures, deserialized from PlacedFixturesJson.electricalFixtures. */
+  fixtures: Fixture[];
+  /** FPS-typed lighting zones, deserialized from PlacedFixturesJson.lightingZones. */
+  zones: Zone[];
   exitRoutes: any[];
   _rawPayload?: any;
 }
@@ -87,6 +95,55 @@ function extractElectricalFixtures(raw: any, parsedDoc: any): any[] {
 
   const inline = raw?.electricalFixtures ?? parsedDoc?.electricalFixtures;
   return Array.isArray(inline) ? inline : [];
+}
+
+/**
+ * Reads the raw PlacedFixturesJson blob and returns its `lightingZones`
+ * array deserialized through FPS's Zone model. Returns [] when the field
+ * is absent or malformed — FPS does not author zones yet, so absence is
+ * the normal case today.
+ */
+function extractLightingZones(raw: any, parsedDoc: any): Zone[] {
+  const blob =
+    raw?.placedFixturesJson ??
+    raw?.PlacedFixturesJson ??
+    parsedDoc?.placedFixturesJson ??
+    parsedDoc?.PlacedFixturesJson;
+
+  if (!blob) return [];
+
+  let parsed: any;
+  try {
+    parsed = typeof blob === 'string' ? JSON.parse(blob) : blob;
+  } catch (e) {
+    console.warn('[EmergencyFloorplanLoader] PlacedFixturesJson parse failed (zones)', e);
+    return [];
+  }
+
+  const rawZones = parsed?.lightingZones ?? parsed?.LightingZones;
+  if (!Array.isArray(rawZones)) return [];
+
+  const out: Zone[] = [];
+  for (const r of rawZones) {
+    const z = deserializeZone(r);
+    if (z) out.push(z);
+  }
+  return out;
+}
+
+/**
+ * Deserializes raw fixture entries through FPS's Fixture model. Entries
+ * that fail validation are dropped; the raw `electricalFixtures` array on
+ * the model is kept intact so ComplianceEngine can keep reading whatever
+ * it reads today.
+ */
+function deserializeFixtures(rawFixtures: any[]): Fixture[] {
+  const out: Fixture[] = [];
+  for (const r of rawFixtures) {
+    const f = deserializeFixture(r);
+    if (f) out.push(f);
+  }
+  return out;
 }
 
 export const EmergencyFloorplanLoader = {
@@ -190,6 +247,8 @@ export const EmergencyFloorplanLoader = {
       }
 
       const electricalFixtures = extractElectricalFixtures(data, parsedDocument);
+      const fixtures = deserializeFixtures(electricalFixtures);
+      const zones = extractLightingZones(data, parsedDocument);
       const exitRoutes = extractRoutesFromElements(mergedElements);
 
       console.log('[EmergencyFloorplanLoader] model ready', {
@@ -199,6 +258,8 @@ export const EmergencyFloorplanLoader = {
         windows: (plan.windows || parsedDocument.windows || []).length,
         rooms: (plan.rooms || parsedDocument.rooms || []).length,
         electricalFixtures: electricalFixtures.length,
+        fixtures: fixtures.length,
+        zones: zones.length,
         exitRoutes: exitRoutes.length,
         sampleFixture: electricalFixtures[0],
       });
@@ -214,6 +275,8 @@ export const EmergencyFloorplanLoader = {
           windows: plan.windows || parsedDocument.windows || [],
           rooms: plan.rooms || parsedDocument.rooms || [],
           electricalFixtures,
+          fixtures,
+          zones,
           exitRoutes,
           _rawPayload: data,
         },

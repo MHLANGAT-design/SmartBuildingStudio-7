@@ -7,6 +7,8 @@ import {
   runEmergencyHeatmap,
   saveEmergencyRoutes,
 } from '@/modules/EmergencyLighting/store/emergencyThunks';
+import { ComplianceGroup } from '@/modules/EmergencyLighting/Toolbar/groups/ComplianceGroup';
+import { SimulationGroup } from '@/modules/EmergencyLighting/Toolbar/groups/SimulationGroup';
 
 export const EmergencyToolbar: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -63,6 +65,9 @@ export const EmergencyToolbar: React.FC = () => {
       </span>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ComplianceGroup />
+        <SimulationGroup />
+
         <button
           type="button"
           onClick={handleHeatmapToggle}

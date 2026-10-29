@@ -9,7 +9,6 @@ export const AddExitRouteButton: React.FC = () => {
   const routeTool = useEvacuationRoutes();
 
   const handleBegin = () => {
-    console.log('🔵 [Button] handleBegin fired — calling beginRoute');
     routeTool.beginRoute();
   };
 
@@ -18,7 +17,6 @@ export const AddExitRouteButton: React.FC = () => {
       <button
         type="button"
         onClick={() => {
-          console.log('🔵 [Button] + Add Route clicked — opening dialog');
           setDialogOpen(true);
         }}
         style={{

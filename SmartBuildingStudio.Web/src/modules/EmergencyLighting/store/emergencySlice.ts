@@ -1,7 +1,10 @@
 // src/modules/EmergencyLighting/store/emergencySlice.ts
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { EmergencyState } from '@/modules/EmergencyLighting/store/emergencyTypes';
+import {
+  EmergencyState,
+  EmergencySidebarSectionKey,
+} from '@/modules/EmergencyLighting/store/emergencyTypes';
 import {
   loadEmergencyFloorplan,
   loadRawGeometry,
@@ -30,6 +33,7 @@ const initialState: EmergencyState = {
     status: 'idle',
     error: null,
     lastSavedAt: null,
+    isDirty: false,
   },
   routes: [],
   routeDrawing: {
@@ -47,11 +51,15 @@ const initialState: EmergencyState = {
     exitSigns: true,
     rawgeometry: false,
   },
+  sidebarExpansion: {},
   ui: {
     activePanel: 'simulation',
     isSimulationDialogOpen: false,
     isReportDialogOpen: false,
     selectedRouteId: null,
+    selectedEmergencyFixtureId: null,
+    selectedZoneId: null,
+    focusRequest: null,
   },
 };
 
@@ -68,6 +76,11 @@ const emergencySlice = createSlice({
     toggleLayer(state, action: PayloadAction<keyof typeof initialState.layerVisibility>) {
       state.layerVisibility[action.payload] = !state.layerVisibility[action.payload];
     },
+    toggleSidebarSection(state, action: PayloadAction<EmergencySidebarSectionKey>) {
+      const key = action.payload;
+      const current = state.sidebarExpansion[key];
+      state.sidebarExpansion[key] = !(current ?? true);
+    },
     setActivePanel(state, action: PayloadAction<'simulation' | 'compliance' | 'routes'>) {
       state.ui.activePanel = action.payload;
     },
@@ -79,9 +92,43 @@ const emergencySlice = createSlice({
     },
     setSelectedRouteId(state, action: PayloadAction<string | null>) {
       state.ui.selectedRouteId = action.payload;
+      if (action.payload) {
+        state.ui.selectedEmergencyFixtureId = null;
+        state.ui.selectedZoneId = null;
+      }
     },
     clearSelectedRouteId(state) {
       state.ui.selectedRouteId = null;
+    },
+    setSelectedEmergencyFixtureId(state, action: PayloadAction<string | null>) {
+      state.ui.selectedEmergencyFixtureId = action.payload;
+      if (action.payload) {
+        state.ui.selectedRouteId = null;
+        state.ui.selectedZoneId = null;
+      }
+    },
+    clearSelectedEmergencyFixtureId(state) {
+      state.ui.selectedEmergencyFixtureId = null;
+    },
+    setSelectedZoneId(state, action: PayloadAction<string | null>) {
+      state.ui.selectedZoneId = action.payload;
+      if (action.payload) {
+        state.ui.selectedRouteId = null;
+        state.ui.selectedEmergencyFixtureId = null;
+      }
+    },
+    clearSelectedZoneId(state) {
+      state.ui.selectedZoneId = null;
+    },
+    requestFocusSegment(state, action: PayloadAction<{ routeId: string; segmentIndex: number }>) {
+      state.ui.focusRequest = {
+        routeId: action.payload.routeId,
+        segmentIndex: action.payload.segmentIndex,
+        nonce: Date.now(),
+      };
+    },
+    clearFocusRequest(state) {
+      state.ui.focusRequest = null;
     },
     clearSimulation(state) {
       state.simulation = { issues: [], status: 'idle', error: null, lastRunAt: null };
@@ -91,20 +138,37 @@ const emergencySlice = createSlice({
     },
     addEvacuationRouteAction(state, action: PayloadAction<EvacuationRoute>) {
       state.routes.push(action.payload);
+      state.routesSave.isDirty = true;
     },
     removeEvacuationRouteAction(state, action: PayloadAction<string>) {
       state.routes = state.routes.filter((r) => r.id !== action.payload);
       if (state.ui.selectedRouteId === action.payload) {
         state.ui.selectedRouteId = null;
       }
+      state.routesSave.isDirty = true;
+    },
+    removeRouteElementAction(state, action: PayloadAction<string>) {
+      const model = state.floorplan.model;
+      if (!model || !Array.isArray(model.elements)) return;
+      model.elements = model.elements.filter(
+        (el: any) =>
+          !(
+            String(el?.type ?? '').toLowerCase() === 'exitroute' &&
+            el?.id === action.payload
+          )
+      );
     },
     renameEvacuationRouteAction(state, action: PayloadAction<{ id: string; name: string }>) {
       const route = state.routes.find((r) => r.id === action.payload.id);
-      if (route) route.name = action.payload.name;
+      if (route) {
+        route.name = action.payload.name;
+        state.routesSave.isDirty = true;
+      }
     },
     clearRoutes(state) {
       state.routes = [];
       state.ui.selectedRouteId = null;
+      state.routesSave.isDirty = true;
     },
     beginRouteDrawing(state) {
       state.routeDrawing = {
@@ -148,7 +212,10 @@ const emergencySlice = createSlice({
         state.simulation = { issues: [], status: 'idle', error: null, lastRunAt: null };
         state.heatmap = { data: null, status: 'idle', error: null, lastRunAt: null };
         state.ui.selectedRouteId = null;
+        state.ui.selectedEmergencyFixtureId = null;
+        state.ui.selectedZoneId = null;
         state.routes = action.payload.exitRoutes ?? [];
+        state.routesSave.isDirty = false;
       })
       .addCase(loadEmergencyFloorplan.rejected, (state, action) => {
         state.floorplan.status = 'error';
@@ -202,6 +269,7 @@ const emergencySlice = createSlice({
         state.routesSave.status = 'saved';
         state.routesSave.error = null;
         state.routesSave.lastSavedAt = new Date().toISOString();
+        state.routesSave.isDirty = false;
       })
       .addCase(saveEmergencyRoutes.rejected, (state, action) => {
         state.routesSave.status = 'error';
@@ -214,15 +282,23 @@ export const {
   resetEmergency,
   setViewport,
   toggleLayer,
+  toggleSidebarSection,
   setActivePanel,
   setSimulationDialogOpen,
   setReportDialogOpen,
   setSelectedRouteId,
   clearSelectedRouteId,
+  setSelectedEmergencyFixtureId,
+  clearSelectedEmergencyFixtureId,
+  setSelectedZoneId,
+  clearSelectedZoneId,
+  requestFocusSegment,
+  clearFocusRequest,
   clearSimulation,
   clearHeatmap,
   addEvacuationRouteAction,
   removeEvacuationRouteAction,
+  removeRouteElementAction,
   renameEvacuationRouteAction,
   clearRoutes,
   beginRouteDrawing,

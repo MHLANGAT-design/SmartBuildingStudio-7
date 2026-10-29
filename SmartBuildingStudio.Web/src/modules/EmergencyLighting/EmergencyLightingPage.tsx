@@ -1,4 +1,4 @@
-// EmergencyLightingPage.tsx
+// src/modules/EmergencyLighting/EmergencyLightingPage.tsx
 
 import React, { useEffect, useLayoutEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
@@ -9,9 +9,14 @@ import { EmergencyToolbar } from '@/modules/EmergencyLighting/Toolbar/EmergencyT
 import { loadEmergencyFloorplan } from '@/modules/EmergencyLighting/store/emergencyThunks';
 import { resetEmergency } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { selectDocumentFresh } from '@/modules/Shared/DocumentVersion/selectDocumentFresh';
+import { useEmergencyUnsavedChanges } from '@/modules/EmergencyLighting/hooks/useEmergencyUnsavedChanges';
 
 export const EmergencyLightingPage: React.FC = () => {
   const dispatch = useAppDispatch();
+  
+  // Activate the unsaved changes warning
+  useEmergencyUnsavedChanges();
+
   const floorplanStatus = useAppSelector((s: any) => s.emergency.floorplan.status);
   const floorplanError = useAppSelector((s: any) => s.emergency.floorplan.error);
   const loadedDocId = useAppSelector((s: any) => s.emergency.floorplan.model?.documentId);

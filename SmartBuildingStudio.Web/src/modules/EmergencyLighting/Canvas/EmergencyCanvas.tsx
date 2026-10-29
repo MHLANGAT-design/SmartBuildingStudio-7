@@ -1,6 +1,6 @@
 // src/modules/EmergencyLighting/Canvas/EmergencyCanvas.tsx
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { CanvasRenderer } from '@/modules/FloorPlanDesigner/Components/Canvas/CanvasRenderer';
 import { useEmergencyCanvasPan } from '@/modules/EmergencyLighting/hooks/useEmergencyCanvasPan';
@@ -13,8 +13,11 @@ import {
   setSelectedRouteId,
   clearSelectedRouteId,
   removeEvacuationRouteAction,
+  removeRouteElementAction,
+  clearFocusRequest,
 } from '@/modules/EmergencyLighting/store/emergencySlice';
 import { runEmergencySimulation } from '@/modules/EmergencyLighting/store/emergencyThunks';
+import { selectEmergencyFixtureById } from '@/modules/EmergencyLighting/store/emergencySelectors';
 import { useZoomSurface } from '@/modules/Shared/Zoom/zoomRegistry';
 import type { ZoomableSurface } from '@/modules/Shared/Zoom/zoomSurface';
 
@@ -57,7 +60,6 @@ function computeArea(pts: { x: number; y: number }[]): number {
   return Math.abs(area) / 2 / 1_000_000;
 }
 
-/** Distance from point P to segment AB in screen pixels. */
 function pointToSegmentPx(
   p: { x: number; y: number },
   a: { x: number; y: number },
@@ -76,11 +78,20 @@ export const EmergencyCanvas: React.FC = () => {
   const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
   const floorplanModel = useAppSelector((s: any) => s.emergency.floorplan.model);
   const rawGeometry = useAppSelector((s: any) => s.emergency.rawGeometry.elements);
   const layers = useAppSelector((s: any) => s.emergency.layerVisibility);
   const routes = useAppSelector((s: any) => s.emergency.routes || []);
   const selectedRouteId = useAppSelector((s: any) => s.emergency.ui.selectedRouteId);
+  const selectedFixtureId = useAppSelector((s: any) => s.emergency.ui.selectedEmergencyFixtureId);
+  const focusRequest = useAppSelector((s: any) => s.emergency.ui.focusRequest);
+
+  // Resolve the selected fixture from the store
+  const selectedFixture = useAppSelector((s) =>
+    selectEmergencyFixtureById(s, selectedFixtureId)
+  );
 
   const routeTool = useEvacuationRoutes();
 
@@ -99,6 +110,24 @@ export const EmergencyCanvas: React.FC = () => {
   }), [scale, setZoom, setOffset]);
 
   useZoomSurface(zoomSurface);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
+
+    const parent = canvas.parentElement;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCanvasSize({ width, height });
+      }
+    });
+
+    observer.observe(parent);
+
+    return () => observer.disconnect();
+  }, []);
 
   const combinedModel = useMemo(() => {
     if (!floorplanModel) return null;
@@ -176,14 +205,16 @@ export const EmergencyCanvas: React.FC = () => {
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.parentElement?.getBoundingClientRect();
-    const cssWidth = Math.max(MIN_CANVAS_DIM, rect?.width || 1024);
-    const cssHeight = Math.max(MIN_CANVAS_DIM, rect?.height || 650);
 
-    canvas.width = Math.floor(cssWidth * dpr);
-    canvas.height = Math.floor(cssHeight * dpr);
-    canvas.style.width = `${cssWidth}px`;
-    canvas.style.height = `${cssHeight}px`;
+    const cssWidth = Math.max(MIN_CANVAS_DIM, canvasSize.width || 1024);
+    const cssHeight = Math.max(MIN_CANVAS_DIM, canvasSize.height || 650);
+
+    if (canvas.width !== Math.floor(cssWidth * dpr) || canvas.height !== Math.floor(cssHeight * dpr)) {
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+    }
 
     if (!Array.isArray(combinedModel.elements) || combinedModel.elements.length === 0) return;
 
@@ -251,9 +282,64 @@ export const EmergencyCanvas: React.FC = () => {
 
       ctx.restore();
     }
-  }, [combinedModel, scale, offset, layers]);
+  }, [combinedModel, scale, offset, layers, canvasSize]);
 
-  // ── Pointer handlers ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!focusRequest) return;
+    const { routeId, segmentIndex } = focusRequest;
+    const route = routes.find((r: any) => r.id === routeId);
+    if (!route) {
+      dispatch(clearFocusRequest());
+      return;
+    }
+
+    const pts: Array<{ x: number; y: number }> =
+      Array.isArray(route.points) && route.points.length >= 2
+        ? route.points
+        : [route.startNode, route.endNode];
+    const a = pts[segmentIndex];
+    const b = pts[segmentIndex + 1];
+    if (!a || !b) {
+      dispatch(clearFocusRequest());
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      dispatch(clearFocusRequest());
+      return;
+    }
+
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const segLen = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+
+    const projNow = getProjection(canvas.width, canvas.height);
+    if (!projNow) {
+      dispatch(clearFocusRequest());
+      return;
+    }
+
+    const shortSide = Math.min(canvas.width, canvas.height);
+    const targetPx = shortSide * 0.4;
+    const currentFinalScale = projNow.finalScale || 1;
+    const currentZoom = scale || 1;
+    const finalScalePerZoom = currentFinalScale / currentZoom;
+    const desiredFinalScale = targetPx / segLen;
+    const desiredZoom = desiredFinalScale / finalScalePerZoom;
+    const clampedZoom = Math.max(0.5, Math.min(8, desiredZoom));
+
+    const dpr = projNow.dpr;
+    const finalScaleAtNewZoom = finalScalePerZoom * clampedZoom;
+    const yScaleAtNewZoom = -finalScaleAtNewZoom;
+
+    const offsetX = -((mid.x - projNow.centerX) * finalScaleAtNewZoom) / dpr;
+    const offsetY = -((mid.y - projNow.centerY) * yScaleAtNewZoom) / dpr;
+
+    setZoom(clampedZoom);
+    setOffset({ x: offsetX, y: offsetY });
+    dispatch(clearFocusRequest());
+  }, [focusRequest, routes, dispatch, setZoom, setOffset, scale]);
+
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (routeTool.isDrawing) return;
     handleMouseDown(e);
@@ -261,8 +347,6 @@ export const EmergencyCanvas: React.FC = () => {
 
   const onClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!routeTool.isDrawing) {
-      // Selection hit-test: click on a route line to select it.
-      // Click on empty space to clear selection.
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -302,7 +386,6 @@ export const EmergencyCanvas: React.FC = () => {
       return;
     }
 
-    // Drawing mode: place a route point.
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -349,7 +432,6 @@ export const EmergencyCanvas: React.FC = () => {
     routeTool.moveCanvas(worldPoint);
   };
 
-  // ── Escape / Enter while drawing; Delete while a route is selected ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (routeTool.isDrawing) {
@@ -358,10 +440,12 @@ export const EmergencyCanvas: React.FC = () => {
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRouteId) {
-        // Don't steal Backspace when focus is in an input
         const tag = (document.activeElement as HTMLElement | null)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        // Order matters: remove from routes first so the subsequent simulation
+        // doesn't see the deleted route.
         dispatch(removeEvacuationRouteAction(selectedRouteId));
+        dispatch(removeRouteElementAction(selectedRouteId));
         dispatch(runEmergencySimulation() as any);
       }
     };
@@ -370,16 +454,11 @@ export const EmergencyCanvas: React.FC = () => {
   }, [routeTool.isDrawing, routeTool, selectedRouteId, dispatch]);
 
   const proj = useMemo(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const parent = canvas.parentElement;
-    if (!parent) return null;
-    const rect = parent.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.floor(Math.max(MIN_CANVAS_DIM, rect.width || 1024) * dpr);
-    const h = Math.floor(Math.max(MIN_CANVAS_DIM, rect.height || 650) * dpr);
+    const w = Math.floor(Math.max(MIN_CANVAS_DIM, canvasSize.width || 1024) * dpr);
+    const h = Math.floor(Math.max(MIN_CANVAS_DIM, canvasSize.height || 650) * dpr);
     return getProjection(w, h);
-  }, [combinedModel, scale, offset, layers.rawgeometry]);
+  }, [combinedModel, scale, offset, layers.rawgeometry, canvasSize]);
 
   const pendingPts = routeTool.pendingPoints || [];
   const lastCommitted = pendingPts.length > 0 ? pendingPts[pendingPts.length - 1] : routeTool.startPoint;
@@ -415,6 +494,35 @@ export const EmergencyCanvas: React.FC = () => {
         >
           <HeatmapLayer worldToScreen={proj.worldToScreen} />
           <EvacuationRouteLayer worldToScreen={proj.worldToScreen} />
+
+          {/* ─── Selected Fixture Highlight ────────────────────────────── */}
+          {selectedFixture && (() => {
+            // FPS Fixture model has x/y directly on the object, not in a .position field
+            const screenPt = proj.worldToScreen({ x: selectedFixture.x, y: selectedFixture.y });
+            return (
+              <g>
+                {/* Outer pulsing ring */}
+                <circle
+                  cx={screenPt.x}
+                  cy={screenPt.y}
+                  r={20}
+                  fill="rgba(56,189,248,0.15)"
+                  stroke="#38BDF8"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                />
+                {/* Inner solid dot */}
+                <circle
+                  cx={screenPt.x}
+                  cy={screenPt.y}
+                  r={6}
+                  fill="#38BDF8"
+                  stroke="#0F1424"
+                  strokeWidth={2}
+                />
+              </g>
+            );
+          })()}
 
           {routeTool.isDrawing && pendingPts.length > 0 && routeTool.cursorPoint && (
             <g style={{ pointerEvents: 'none' }}>

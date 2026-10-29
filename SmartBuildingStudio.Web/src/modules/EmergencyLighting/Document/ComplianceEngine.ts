@@ -270,7 +270,7 @@ export class ComplianceEngine {
       if (String(el.id ?? '').startsWith('room-edge-trace-')) return null;
 
       const type = String(el?.type ?? '').toLowerCase();
-      const layer = String(el.layer ?? el.originalLayer ?? '').toUpperCase();
+      const layer = String(el?.layer ?? el.originalLayer ?? '').toUpperCase();
 
       if (type === 'door' || layer === 'DOORS') return null;
       if (type === 'room' || type === 'fixture') return null;
@@ -305,9 +305,11 @@ export class ComplianceEngine {
         ? route.points
         : [route.startNode, route.endNode];
 
-      let blockedBy: { hit: { x: number; y: number }; kind: 'wall' | 'window' } | null = null;
-      outer: for (let i = 1; i < pts.length; i++) {
+      // Per-segment wall/window hits (no break — collect all)
+      for (let i = 1; i < pts.length; i++) {
         const routeSeg: Seg = { a: pts[i - 1], b: pts[i] };
+        const segmentIndex = i - 1;
+
         for (const wallSeg of wallSegments) {
           const hit = segmentIntersection(routeSeg, wallSeg);
           if (!hit) continue;
@@ -327,23 +329,22 @@ export class ComplianceEngine {
             if (neighborDist >= MIN_WALKABLE_GAP_MM) continue;
           }
 
-          blockedBy = { hit, kind: wallSeg.kind };
-          break outer;
+          const label = wallSeg.kind === 'window' ? 'a window' : 'a wall';
+          issues.push({
+            id: `issue-route-segment-wall-${route.id}-${segmentIndex}`,
+            ruleId: 'BS5266-8',
+            severity: 'error',
+            message:
+              `Route "${route.name}" segment ${segmentIndex + 1} crosses ${label} at ` +
+              `(${Math.round(hit.x)}, ${Math.round(hit.y)}). ` +
+              `Draw the route through doorways and along corridors.`,
+            location: hit,
+            segmentIndex,
+            segmentStart: { x: routeSeg.a.x, y: routeSeg.a.y },
+            segmentEnd: { x: routeSeg.b.x, y: routeSeg.b.y },
+            barrierKind: wallSeg.kind,
+          });
         }
-      }
-
-      if (blockedBy) {
-        const label = blockedBy.kind === 'window' ? 'a window' : 'a wall';
-        issues.push({
-          id: `issue-route-wall-${route.id}`,
-          ruleId: 'BS5266-8',
-          severity: 'error',
-          message:
-            `Route "${route.name}" crosses ${label} at ` +
-            `(${Math.round(blockedBy.hit.x)}, ${Math.round(blockedBy.hit.y)}). ` +
-            `Draw the route through doorways and along corridors.`,
-          location: blockedBy.hit,
-        });
       }
 
       if (route.lengthMeters > 30) {
