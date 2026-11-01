@@ -9,6 +9,8 @@ import {
 } from '@/modules/EmergencyLighting/store/emergencyThunks';
 import { ComplianceGroup } from '@/modules/EmergencyLighting/Toolbar/groups/ComplianceGroup';
 import { SimulationGroup } from '@/modules/EmergencyLighting/Toolbar/groups/SimulationGroup';
+import { ExportGroup } from '@/modules/EmergencyLighting/Toolbar/groups/ExportGroup';
+import { RunSimulationDialog } from '@/modules/EmergencyLighting/Dialogs/RunSimulationDialog';
 
 export const EmergencyToolbar: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -67,6 +69,7 @@ export const EmergencyToolbar: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <ComplianceGroup />
         <SimulationGroup />
+        <ExportGroup />
 
         <button
           type="button"
@@ -138,6 +141,8 @@ export const EmergencyToolbar: React.FC = () => {
             : '💾 Save'}
         </button>
       </div>
+
+      <RunSimulationDialog />
     </div>
   );
 };

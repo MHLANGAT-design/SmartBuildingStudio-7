@@ -9,6 +9,12 @@ import { useEvacuationRoutes } from '@/modules/EmergencyLighting/hooks/useEvacua
 import { EvacuationRouteLayer } from '@/modules/EmergencyLighting/Canvas/EvacuationRouteLayer';
 import { HeatmapLayer } from '@/modules/EmergencyLighting/Canvas/HeatmapLayer';
 import { HeatmapLegend } from '@/modules/EmergencyLighting/Canvas/HeatmapLegend';
+import { ComplianceOverlay } from '@/modules/EmergencyLighting/Canvas/ComplianceOverlay';
+import { CoverageZoneLayer } from '@/modules/EmergencyLighting/Canvas/CoverageZoneLayer';
+import { VisibilityConeLayer } from '@/modules/EmergencyLighting/Canvas/VisibilityConeLayer';
+import { PathFindingLayer } from '@/modules/EmergencyLighting/Canvas/PathFindingLayer';
+import { EmergencyFixtureLayer } from '@/modules/EmergencyLighting/Canvas/EmergencyFixtureLayer';
+import { ExitSignLayer } from '@/modules/EmergencyLighting/Canvas/ExitSignLayer';
 import {
   setSelectedRouteId,
   clearSelectedRouteId,
@@ -88,7 +94,6 @@ export const EmergencyCanvas: React.FC = () => {
   const selectedFixtureId = useAppSelector((s: any) => s.emergency.ui.selectedEmergencyFixtureId);
   const focusRequest = useAppSelector((s: any) => s.emergency.ui.focusRequest);
 
-  // Resolve the selected fixture from the store
   const selectedFixture = useAppSelector((s) =>
     selectEmergencyFixtureById(s, selectedFixtureId)
   );
@@ -442,8 +447,6 @@ export const EmergencyCanvas: React.FC = () => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRouteId) {
         const tag = (document.activeElement as HTMLElement | null)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        // Order matters: remove from routes first so the subsequent simulation
-        // doesn't see the deleted route.
         dispatch(removeEvacuationRouteAction(selectedRouteId));
         dispatch(removeRouteElementAction(selectedRouteId));
         dispatch(runEmergencySimulation() as any);
@@ -492,16 +495,27 @@ export const EmergencyCanvas: React.FC = () => {
             height: '100%',
           }}
         >
+          {/* ── Analysis layers (bottom of the stack) ──────────────── */}
+          <ComplianceOverlay worldToScreen={proj.worldToScreen} />
+          <CoverageZoneLayer worldToScreen={proj.worldToScreen} />
+          <VisibilityConeLayer worldToScreen={proj.worldToScreen} />
+          <PathFindingLayer worldToScreen={proj.worldToScreen} />
+
+          {/* ── Heatmap (data visualization) ──────────────────────── */}
           <HeatmapLayer worldToScreen={proj.worldToScreen} />
+
+          {/* ── Fixture glyphs ────────────────────────────────────── */}
+          <EmergencyFixtureLayer worldToScreen={proj.worldToScreen} />
+          <ExitSignLayer worldToScreen={proj.worldToScreen} />
+
+          {/* ── Evacuation routes (topmost UI overlay) ────────────── */}
           <EvacuationRouteLayer worldToScreen={proj.worldToScreen} />
 
-          {/* ─── Selected Fixture Highlight ────────────────────────────── */}
+          {/* ── Selected fixture marker ───────────────────────────── */}
           {selectedFixture && (() => {
-            // FPS Fixture model has x/y directly on the object, not in a .position field
             const screenPt = proj.worldToScreen({ x: selectedFixture.x, y: selectedFixture.y });
             return (
               <g>
-                {/* Outer pulsing ring */}
                 <circle
                   cx={screenPt.x}
                   cy={screenPt.y}
@@ -511,7 +525,6 @@ export const EmergencyCanvas: React.FC = () => {
                   strokeWidth={2}
                   strokeDasharray="4 4"
                 />
-                {/* Inner solid dot */}
                 <circle
                   cx={screenPt.x}
                   cy={screenPt.y}
@@ -524,6 +537,7 @@ export const EmergencyCanvas: React.FC = () => {
             );
           })()}
 
+          {/* ── Route drawing preview ─────────────────────────────── */}
           {routeTool.isDrawing && pendingPts.length > 0 && routeTool.cursorPoint && (
             <g style={{ pointerEvents: 'none' }}>
               {pendingPts.length >= 2 && (
@@ -559,6 +573,7 @@ export const EmergencyCanvas: React.FC = () => {
             </g>
           )}
 
+          {/* ── Legend (topmost) ──────────────────────────────────── */}
           <HeatmapLegend offsetX={16} offsetY={16} />
         </svg>
       )}
