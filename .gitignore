@@ -51,3 +51,4 @@ BackendModules/ProductCatalogService/ProductCatalogService.Api/App_Data/*
 # Test artifacts from fixture import flow
 *.ies
 
+ts-out.txt
