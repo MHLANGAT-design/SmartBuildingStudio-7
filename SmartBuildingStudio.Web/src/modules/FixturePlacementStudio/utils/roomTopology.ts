@@ -11,6 +11,11 @@ import type { LayerCategory } from '@/modules/FixturePlacementStudio/utils/layer
 import { windowIntersectsPolygon } from './boundaries/windowBoundary';
 import { doorBelongsToRoom } from './boundaries/doorBoundary';
 import {
+  drawnDoorBelongsToRoom,
+  drawnWindowIntersectsPolygon,
+  isDrawnComposite,
+} from './boundaries/drawnElementBoundary';
+import {
   pointInPolygon,
   fragmentIntersectsPolygon,
   distance,
@@ -129,11 +134,18 @@ export function buildRoomTopology(
     }
 
     // ── Doors ──
+    // Dispatch on composite origin:
+    //   • DOOR_*    → drawn-door rules (jamb-crossing test, no wide tolerance)
+    //   • everything → existing DXF rules (doorBoundary.ts, unchanged)
     const doorFragmentIds: string[] = [];
     const boundaryDoorElements: RawElement[] = [];
 
     for (const [, frags] of doorsByComposite) {
-      if (!doorBelongsToRoom(frags, poly)) continue;
+      const isDrawn = frags.length > 0 && isDrawnComposite(frags[0]);
+      const belongs = isDrawn
+        ? drawnDoorBelongsToRoom(frags, poly)
+        : doorBelongsToRoom(frags, poly);
+      if (!belongs) continue;
       for (const f of frags) {
         doorFragmentIds.push(f.id);
         boundaryDoorElements.push(f);
@@ -141,10 +153,15 @@ export function buildRoomTopology(
     }
 
     // ── Windows ──
+    // Same dispatch pattern: WINDOW_* uses drawn rules, DXF uses existing.
     const windowFragmentIds: string[] = [];
     const boundaryWindowElements: RawElement[] = [];
     for (const w of windowElements) {
-      if (!windowIntersectsPolygon(w, poly)) continue;
+      const isDrawn = isDrawnComposite(w);
+      const belongs = isDrawn
+        ? drawnWindowIntersectsPolygon(w, poly)
+        : windowIntersectsPolygon(w, poly);
+      if (!belongs) continue;
       windowFragmentIds.push(w.id);
       boundaryWindowElements.push(w);
     }

@@ -1,17 +1,12 @@
-// src/modules/FixturePlacementStudio/Canvas/PlacementLayer.ts
-//
-// Placement mode tracking for the FixturePlacementStudio canvas.
-//
-// When the user has selected a product in the Fixture Library
-// (state.fixture.placementProductId is set), clicking on the canvas
-// commits a new fixture. This hook resolves the productId → FixtureKind
-// mapping by fetching the product from ProductCatalogService.
+// src/modules/FixturePlacementStudio/Canvas/PlacementLayer.tsx
 
 import { useCallback, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/Application/ConfigureStore';
 import { placeFixture } from '@/modules/FixturePlacementStudio/store/fixtureSlice';
 import { selectPlacementProductId } from '@/modules/FixturePlacementStudio/store/fixtureSelectors';
 import type { FixtureKind } from '@/modules/FixturePlacementStudio/models/Fixture';
+import type { EmergencyLight } from '@/modules/FixturePlacementStudio/models/EmergencyLight';
+import { buildEmergencyLightFromProduct } from '@/modules/EmergencyLighting/utils/buildEmergencyLightFromProduct';
 import { API_ROUTES } from '@/Application/ApiRoutes';
 
 export interface PlacementCursor {
@@ -27,11 +22,6 @@ export interface UsePlacementLayerResult {
   commit: (world: PlacementCursor, roomId?: string) => void;
 }
 
-// ─── Wire DTO ────────────────────────────────────────────────────────────────
-//
-// Mirrors ProductCatalogService.Application.DTOs.ProductDto.
-// `productType` is a STRING — the backend serializes the enum by name.
-
 interface ProductDto {
   id: string;
   productCode: string;
@@ -42,23 +32,15 @@ interface ProductDto {
   cri?: number | null;
   colorTemperature?: number | null;
   manufacturer?: string | null;
+  family?: string | null;
+  specifications?: string | null;
 }
 
-/**
- * Map a ProductCatalogService `productType` string onto a studio
- * `FixtureKind`. Mirrors the same mapping used in FixtureLibrary so
- * both stay in sync.
- *
- * Backend enum (ProductCatalogService.Domain.Enums.ProductType):
- *   "Luminaire"     → 'luminaire'
- *   "Driver"        → 'driver'
- *   "Controller"    → 'controller'
- *   "Sensor"        → 'sensor'
- *   "Gateway"       → 'gateway'
- *   "EmergencyUnit" → 'emergencyLight'
- *   "PowerSupply"   → 'powerSupply'
- *   "Switch"        → 'switch'
- */
+interface ResolvedProduct {
+  kind: FixtureKind;
+  emergencyLight?: EmergencyLight;
+}
+
 function mapProductTypeToKind(productType: string): FixtureKind {
   switch (productType) {
     case 'Luminaire':     return 'luminaire';
@@ -70,28 +52,12 @@ function mapProductTypeToKind(productType: string): FixtureKind {
     case 'PowerSupply':   return 'powerSupply';
     case 'Switch':        return 'switch';
     default:
-      // eslint-disable-next-line no-console
       console.warn(`[PlacementLayer] Unknown productType "${productType}", defaulting to luminaire`);
       return 'luminaire';
   }
 }
 
-/**
- * Per-product kind cache. Populated on the first placement of a given
- * product so subsequent placements don't re-fetch. Bounded by the number
- * of distinct products in the catalog — safe to keep for the lifetime of
- * the module.
- */
-const productKindCache = new Map<string, FixtureKind>();
-
-/**
- * Default mounting height for newly placed fixtures, in meters.
- *
- * Photometric calculations assume fixtures are above the work plane
- * (typically 0.8 m for offices). A fixture placed at elevation 0 sits
- * inside the floor and contributes nothing meaningful. 2.8 m matches
- * a standard ceiling.
- */
+const productResolvedCache = new Map<string, ResolvedProduct>();
 const DEFAULT_ELEVATION_METERS = 2.8;
 
 export function usePlacementLayer(): UsePlacementLayerResult {
@@ -105,28 +71,34 @@ export function usePlacementLayer(): UsePlacementLayerResult {
     setCursorState(world);
   }, []);
 
+  const dispatchPlace = useCallback(
+    (resolved: ResolvedProduct, pid: string, wx: number, wy: number, rid?: string) => {
+      dispatch(
+        placeFixture({
+          kind: resolved.kind,
+          productId: pid,
+          x: wx,
+          y: wy,
+          rotation: 0,
+          roomId: rid,
+          elevation: DEFAULT_ELEVATION_METERS,
+          emergencyLight: resolved.emergencyLight,
+        })
+      );
+    },
+    [dispatch]
+  );
+
   const commit = useCallback(
     (world: PlacementCursor, roomId?: string) => {
       if (!productId) return;
 
-      // Cache hit — synchronous path.
-      const cachedKind = productKindCache.get(productId);
-      if (cachedKind) {
-        dispatch(
-          placeFixture({
-            kind: cachedKind,
-            productId,
-            x: world.worldX,
-            y: world.worldY,
-            rotation: 0,
-            roomId,
-            elevation: DEFAULT_ELEVATION_METERS,
-          })
-        );
+      const cached = productResolvedCache.get(productId);
+      if (cached) {
+        dispatchPlace(cached, productId, world.worldX, world.worldY, roomId);
         return;
       }
 
-      // Cache miss — resolve the kind asynchronously, then place.
       const pid = productId;
       const wx = world.worldX;
       const wy = world.worldY;
@@ -139,51 +111,33 @@ export function usePlacementLayer(): UsePlacementLayerResult {
             method: 'GET',
             headers: { Accept: 'application/json' },
           });
-
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status} ${res.statusText}`);
-          }
+          if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
 
           const dto = (await res.json()) as ProductDto;
           const kind = mapProductTypeToKind(dto.productType);
-          productKindCache.set(pid, kind);
 
-          dispatch(
-            placeFixture({
-              kind,
-              productId: pid,
-              x: wx,
-              y: wy,
-              rotation: 0,
-              roomId: rid,
-              elevation: DEFAULT_ELEVATION_METERS,
-            })
-          );
+          let emergencyLight: EmergencyLight | undefined = undefined;
+          if (kind === 'emergencyLight') {
+            try {
+              emergencyLight = buildEmergencyLightFromProduct(dto);
+            } catch (mapperErr) {
+              console.error('[PlacementLayer] buildEmergencyLightFromProduct threw:', mapperErr);
+              emergencyLight = undefined;
+            }
+          }
+
+          const resolved: ResolvedProduct = { kind, emergencyLight };
+          productResolvedCache.set(pid, resolved);
+          dispatchPlace(resolved, pid, wx, wy, rid);
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[PlacementLayer] Failed to resolve kind for productId "${pid}", defaulting to luminaire.`,
-            err
-          );
-          // Fallback: place as a luminaire so the user isn't left with
-          // a silent no-op. The glyph will be wrong but the fixture
-          // exists and can be corrected later.
-          productKindCache.set(pid, 'luminaire');
-          dispatch(
-            placeFixture({
-              kind: 'luminaire',
-              productId: pid,
-              x: wx,
-              y: wy,
-              rotation: 0,
-              roomId: rid,
-              elevation: DEFAULT_ELEVATION_METERS,
-            })
-          );
+          console.warn('[PlacementLayer] FAILED to resolve product', pid, '— falling back to luminaire. Error:', err);
+          const fallback: ResolvedProduct = { kind: 'luminaire' };
+          productResolvedCache.set(pid, fallback);
+          dispatchPlace(fallback, pid, wx, wy, rid);
         }
       })();
     },
-    [dispatch, productId]
+    [dispatchPlace, productId]
   );
 
   return {

@@ -1,14 +1,4 @@
 // src/modules/FixturePlacementStudio/Dialogs/SaveLayoutDialog.tsx
-//
-// Modal for Save and Save-As.
-//
-// Two modes:
-//   mode="save"    — confirms the current document will be overwritten
-//   mode="saveAs"  — prompts for a new layout name
-//
-// The dialog is a controlled component: it renders nothing unless
-// `open` is true, and it calls onConfirm with the chosen name (or
-// undefined when mode === 'save') when the user accepts.
 
 import React, { useState, useEffect, useRef } from 'react';
 
@@ -39,10 +29,11 @@ export const SaveLayoutDialog: React.FC<SaveLayoutDialogProps> = ({
 
   // Reset the field whenever the dialog opens for a new save-as.
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     if (mode === 'saveAs') {
       setName(initialName ?? currentName ?? '');
     }
+    return undefined;
   }, [open, mode, initialName, currentName]);
 
   // Focus the input on open for save-as.
@@ -51,11 +42,12 @@ export const SaveLayoutDialog: React.FC<SaveLayoutDialogProps> = ({
       const t = setTimeout(() => inputRef.current?.select(), 40);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [open, mode]);
 
   // Escape cancels.
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) {
         e.preventDefault();

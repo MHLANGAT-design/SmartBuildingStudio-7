@@ -3,6 +3,11 @@
 // Draws room fills, outlines, and labels from the DrawingDocument's
 // room elements. This layer is skipped when no drawingDocument is
 // loaded.
+//
+// Selected-room highlight (5th arg):
+//   When `selectedRoomId` is provided, that room's polygon is drawn on
+//   top of every other room with a bright cyan fill + outline. This is
+//   purely additive — the base pass and labels are unchanged.
 
 import type { DrawingDocument } from '@/modules/FloorPlanDesigner/Document/DrawingDocument';
 import type {
@@ -25,7 +30,8 @@ export function drawRoomLayer(
   ctx: CanvasRenderingContext2D,
   drawingDocument: DrawingDocument | null,
   viewport: ViewportLike,
-  tf: ViewTransform
+  tf: ViewTransform,
+  selectedRoomId?: string | null
 ): void {
   if (!drawingDocument) return;
   const elements = drawingDocument.getElements();
@@ -37,7 +43,7 @@ export function drawRoomLayer(
   });
   if (rooms.length === 0) return;
 
-  // ── Fills + outlines in world space ─────────────────────────────
+  // ── Pass 1: fills + outlines in world space ─────────────────────
   ctx.save();
   ctx.translate(tf.width / 2 + tf.offsetX, tf.height / 2 + tf.offsetY);
   ctx.scale(tf.finalScale, tf.yScale);
@@ -62,9 +68,50 @@ export function drawRoomLayer(
     ctx.setLineDash([]);
     ctx.stroke();
   }
+
+  // ── Pass 2: selected-room highlight (world space, on top) ───────
+  // Drawn inside the same world transform so the polygon lines up
+  // exactly with the base fill even when zoomed/panned.
+  if (selectedRoomId) {
+    const selected = rooms.find((r: any) => {
+      const id = String(r?.id ?? r?.Id ?? '');
+      return id === selectedRoomId;
+    });
+
+    if (selected) {
+      const pts: { x: number; y: number }[] =
+        selected.points || selected.vertices || [];
+      if (Array.isArray(pts) && pts.length >= 3) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.closePath();
+
+        // Bright cyan fill
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
+        ctx.fill();
+
+        // Solid outline
+        ctx.lineWidth = 2 / tf.finalScale;
+        ctx.strokeStyle = '#38BDF8';
+        ctx.setLineDash([]);
+        ctx.stroke();
+
+        // Inner dashed hairline for a "focus ring" effect
+        ctx.lineWidth = 1 / tf.finalScale;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+        ctx.setLineDash([6 / tf.finalScale, 4 / tf.finalScale]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
   ctx.restore();
 
-  // ── Labels in screen space ──────────────────────────────────────
+  // ── Pass 3: labels in screen space ──────────────────────────────
   for (const room of rooms) {
     const pts: { x: number; y: number }[] = room.points || room.vertices || [];
     if (!Array.isArray(pts) || pts.length < 3) continue;
@@ -87,21 +134,25 @@ export function drawRoomLayer(
     );
     const areaM2 = calculateAreaFromPoints(pts);
 
+    const isSelected =
+      !!selectedRoomId &&
+      String((room as any)?.id ?? (room as any)?.Id ?? '') === selectedRoomId;
+
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
     ctx.shadowBlur = 4;
 
-    ctx.fillStyle = 'rgba(74, 222, 128, 0.95)';
+    ctx.fillStyle = isSelected ? '#38BDF8' : 'rgba(74, 222, 128, 0.95)';
     ctx.font = 'bold 11px monospace';
     ctx.fillText(name.toUpperCase(), screen.x, screen.y - 12);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.85)' : 'rgba(255, 255, 255, 0.65)';
     ctx.font = '9px monospace';
     ctx.fillText(`${targetLux} lx  |  G${primaryGroup}`, screen.x, screen.y + 2);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.65)' : 'rgba(255, 255, 255, 0.45)';
     ctx.fillText(`${areaM2.toFixed(2)} m²`, screen.x, screen.y + 14);
 
     ctx.restore();

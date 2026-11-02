@@ -15,6 +15,11 @@
 // FPS-owned fixtures (`fx-*`) are removed and re-added; everything
 // else in the element stream (walls, doors, windows, rooms, raw
 // geometry, DXF placeholder fixtures `py_fixture_*`) passes through.
+//
+// For emergency-light fixtures, the `emergencyLight` payload is
+// preserved on the projected element — element-based consumers
+// (EmergencyFixtureLayer, ExitSignLayer, compliance overlay, export)
+// read it from there, not from the fixture.
 
 import { setDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
 import type { Fixture } from '@/modules/FixturePlacementStudio/models/Fixture';
@@ -32,7 +37,8 @@ function projectFixtureElements(fixtures: Fixture[], existingElements: any[]): a
   const projectedFixtures = fixtures.map((f) => {
     const x = Number(f.x ?? 0);
     const y = Number(f.y ?? 0);
-    return {
+
+    const element: any = {
       id: String(f.id),
       type: 'fixture',
       kind: String(f.kind ?? 'luminaire'),
@@ -49,6 +55,19 @@ function projectFixtureElements(fixtures: Fixture[], existingElements: any[]): a
       layer: 'fixtures',
       originalLayer: 'fixtures',
     };
+
+    // Emergency-light fixtures carry a payload (classification,
+    // operationMode, autonomyMinutes, onEscapeRoute, overrides) that
+    // element-based consumers need — EmergencyFixtureLayer for glyph
+    // selection, ExitSignLayer for classification, EL compliance for
+    // autonomy, and the SVG export for the full spec sheet. Without
+    // this, the payload is dropped the moment the fixture crosses from
+    // the fixture domain into the element domain.
+    if (f.kind === 'emergencyLight' && f.emergencyLight) {
+      element.emergencyLight = f.emergencyLight;
+    }
+
+    return element;
   });
 
   return [...withoutFpsFixtures, ...projectedFixtures];

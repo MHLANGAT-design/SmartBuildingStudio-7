@@ -2,16 +2,13 @@
 //
 // Toolbar host for FixturePlacementStudio.
 //
-// Two rows:
-//   Row 1 — File / Edit / Place / Analysis groups, DALI entry point, status
-//   Row 2 — View toggles (layer visibility)
+// Three rows:
+//   Row 1 — File / Edit / Place (structural actions)
+//   Row 2 — Analysis / DALI / status (evaluation + state)
+//   Row 3 — View toggles (layer visibility)
 //
-// LEVEL 1 LOCK ENFORCEMENT:
-//   When the document is locked by another user, a "READ-ONLY" badge
-//   appears in the status area. Save attempts (even if triggered by
-//   some path that bypasses the disabled FileGroup buttons) surface
-//   the backend's 423 error text in the status area — never silently
-//   swallowed.
+// Each row wraps internally so narrow widths don't clip buttons, but
+// the three rows are always present (no reflow between rows).
 
 import React from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
@@ -48,14 +45,17 @@ export const FixtureToolbar: React.FC = () => {
 
   return (
     <div style={toolbarRoot}>
-      {/* ── Row 1: primary actions ──────────────────────────────── */}
-      <div style={actionRow}>
+      {/* ── Row 1: structural actions ───────────────────────────── */}
+      <div style={row}>
         <FileGroup />
         <span style={divider}>|</span>
         <EditGroup />
         <span style={divider}>|</span>
         <PlaceGroup />
-        <span style={divider}>|</span>
+      </div>
+
+      {/* ── Row 2: evaluation + external entry point + state ────── */}
+      <div style={row}>
         <AnalysisGroup />
         <span style={divider}>|</span>
         <OpenDaliDesignerButton />
@@ -88,8 +88,8 @@ export const FixtureToolbar: React.FC = () => {
         )}
       </div>
 
-      {/* ── Row 2: view toggles ─────────────────────────────────── */}
-      <div style={viewRow}>
+      {/* ── Row 3: view toggles ─────────────────────────────────── */}
+      <div style={row}>
         <span style={viewLabel}>VIEW</span>
         <ViewGroup />
       </div>
@@ -103,22 +103,17 @@ const toolbarRoot: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
+  width: '100%',
+  minWidth: 0,
 };
 
-const actionRow: React.CSSProperties = {
+const row: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: 8,
-  rowGap: 6,
-};
-
-const viewRow: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flexWrap: 'wrap',
   rowGap: 4,
+  minWidth: 0,
 };
 
 const viewLabel: React.CSSProperties = {

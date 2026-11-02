@@ -211,6 +211,41 @@ const fixtureSlice = createSlice({
       state.heatmapVisible = false;
     },
 
+    /**
+     * Batch reposition. Used by align / distribute / snap-to-grid
+     * toolbar operations. Unlike setFixturePositionAndRoom, this does
+     * NOT touch each fixture's roomId — the room assignment is
+     * preserved. Room re-assignment after an align/distribute/snap
+     * happens on the next user drag or on save.
+     *
+     * One dispatch for N fixtures → one undo snapshot, one re-render.
+     */
+    repositionFixtures(
+      state,
+      action: PayloadAction<{
+        positions: Array<{ id: string; x: number; y: number }>;
+      }>
+    ) {
+      if (!state.layout) return;
+      if (action.payload.positions.length === 0) return;
+
+      const posMap = new Map(
+        action.payload.positions.map((p) => [p.id, p])
+      );
+
+      state.layout = {
+        ...state.layout,
+        fixtures: state.layout.fixtures.map((f) => {
+          const update = posMap.get(f.id);
+          if (!update) return f;
+          return { ...f, x: update.x, y: update.y };
+        }),
+        dirty: true,
+      };
+      state.dirty = true;
+      state.heatmapVisible = false;
+    },
+
     rotateFixtures(state, action: PayloadAction<RotateFixturesPayload>) {
       if (!state.layout) return;
       state.layout = applyRotateFixtures(
@@ -462,6 +497,7 @@ export const {
   placeFixture,
   moveFixtures,
   setFixturePositionAndRoom,
+  repositionFixtures,
   rotateFixtures,
   deleteFixtures,
   mergeFixtures,

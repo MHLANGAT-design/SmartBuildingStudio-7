@@ -35,6 +35,8 @@ const group: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
+  flexWrap: 'wrap',
+  rowGap: 4,
 };
 
 export default AnalysisGroup;

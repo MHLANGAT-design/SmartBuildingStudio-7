@@ -1,18 +1,9 @@
 // src/modules/FixturePlacementStudio/services/FixturePlacementService.ts
-//
-// High-level placement operations on a FixtureLayout.
-//
-// Every operation is a pure function: take a layout, return a new
-// layout. No side effects, no dispatch, no fetch. The store wraps these
-// in thunks that dispatch the result and record history.
-//
-// This is the layer where "place a fixture", "move a selection",
-// "rotate", "delete", "align", "distribute" actually happen. The UI
-// calls into these; the store owns the outcome.
 
 import type { FixtureLayout } from '@/modules/FixturePlacementStudio/models/FixtureLayout';
 import type { Fixture, FixtureKind } from '@/modules/FixturePlacementStudio/models/Fixture';
 import { createFixture } from '@/modules/FixturePlacementStudio/models/Fixture';
+import type { EmergencyLight } from '@/modules/FixturePlacementStudio/models/EmergencyLight';
 import type { Zone } from '@/modules/FixturePlacementStudio/models/Zone';
 import { createZone, addFixtureToZone, removeFixtureFromZone } from '@/modules/FixturePlacementStudio/models/Zone';
 
@@ -26,6 +17,13 @@ export interface PlaceFixtureArgs {
   rotation?: number;
   roomId?: string;
   elevation?: number;
+  /**
+   * Pre-built payload for kind === 'emergencyLight'. Built by
+   * buildEmergencyLightFromProduct from the catalog entry's
+   * specifications before dispatch. When omitted, createFixture falls
+   * back to an empty payload (grey 'E' glyph on the canvas).
+   */
+  emergencyLight?: EmergencyLight;
 }
 
 export function placeFixture(
@@ -41,6 +39,7 @@ export function placeFixture(
     rotation: args.rotation,
     roomId: args.roomId,
     elevation: args.elevation,
+    emergencyLight: args.emergencyLight,
   });
 
   return {

@@ -181,6 +181,12 @@ export const CONTROL_KINDS: readonly FixtureKind[] = [
  * Callers supply `kind`, `productId`, `documentId`, and position; the
  * kind-specific payload is filled with empty defaults and expected to be
  * populated from ProductCatalogService before save.
+ *
+ * For `kind === 'emergencyLight'`, callers may supply a pre-built
+ * `emergencyLight` payload — typically from buildEmergencyLightFromProduct
+ * reading the catalog entry's `specifications`. When omitted, the payload
+ * falls back to `{}`, which renders as a grey `E` glyph on the canvas
+ * (see EmergencyFixtureLayer's glyphForMode fallback).
  */
 export function createFixture(
   kind: FixtureKind,
@@ -195,6 +201,8 @@ export function createFixture(
     layerId?: string;
     elevation?: number;
     properties?: Record<string, unknown>;
+    /** Pre-built payload for kind === 'emergencyLight'. */
+    emergencyLight?: EmergencyLight;
   }
 ): Fixture {
   const base: FixtureBase = {
@@ -217,7 +225,11 @@ export function createFixture(
     case 'sensor':
       return { ...base, kind: 'sensor', sensor: {} as Sensor };
     case 'emergencyLight':
-      return { ...base, kind: 'emergencyLight', emergencyLight: {} as EmergencyLight };
+      return {
+        ...base,
+        kind: 'emergencyLight',
+        emergencyLight: args.emergencyLight ?? ({} as EmergencyLight),
+      };
     case 'driver':
       return { ...base, kind: 'driver', driver: {} as Driver };
     case 'powerSupply':

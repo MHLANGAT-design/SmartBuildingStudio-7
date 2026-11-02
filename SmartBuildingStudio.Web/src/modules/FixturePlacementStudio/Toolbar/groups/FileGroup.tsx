@@ -29,6 +29,8 @@ export const FileGroup: React.FC = () => {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
+          flexWrap: 'wrap',
+          rowGap: 4,
           opacity: isReadOnly ? 0.45 : 1,
           pointerEvents: isReadOnly ? 'none' : 'auto',
           transition: 'opacity 0.15s',
@@ -51,6 +53,8 @@ const group: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
+  flexWrap: 'wrap',
+  rowGap: 4,
 };
 
 const divider: React.CSSProperties = {

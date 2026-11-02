@@ -35,6 +35,7 @@ import {
   selectZones,
   selectSelectedFixtureIds,
   selectSelectedZoneIds,
+  selectSelectedRoomId,
   selectHeatmapVisible,
   selectLatestPhotometricCalculation,
   selectLayerVisibility,
@@ -110,6 +111,7 @@ export const FixtureCanvas: React.FC = () => {
   const zones = useAppSelector(selectZones);
   const selectedFixtureIds = useAppSelector(selectSelectedFixtureIds);
   const selectedZoneIds = useAppSelector(selectSelectedZoneIds);
+  const selectedRoomId = useAppSelector(selectSelectedRoomId);
   const heatmapVisible = useAppSelector(selectHeatmapVisible);
   const photometricCalculation = useAppSelector(selectLatestPhotometricCalculation);
   const layerVisibility = useAppSelector(selectLayerVisibility);
@@ -437,7 +439,7 @@ export const FixtureCanvas: React.FC = () => {
     }
 
     if (layerVisibility.rooms) {
-      drawRoomLayer(ctx, drawingDocument, viewport, tf);
+      drawRoomLayer(ctx, drawingDocument, viewport, tf, selectedRoomId);
     }
 
     if (layerVisibility.zones) {
@@ -490,6 +492,7 @@ export const FixtureCanvas: React.FC = () => {
     zones,
     selectedFixtureSet,
     selectedZoneIds,
+    selectedRoomId,
     scale,
     offset,
     canvasSize,
@@ -597,9 +600,21 @@ export const FixtureCanvas: React.FC = () => {
     if (hitFixtureId) {
       e.preventDefault();
       const alreadySelected = selectedFixtureSet.has(hitFixtureId);
-      if (!alreadySelected) {
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+
+      if (additive) {
+        // Shift / Cmd / Ctrl-click toggles this fixture in the selection.
+        const next = alreadySelected
+          ? selectedFixtureIds.filter((id) => id !== hitFixtureId)
+          : [...selectedFixtureIds, hitFixtureId];
+        dispatch(setSelection({ fixtureIds: next, zoneIds: [] }));
+      } else if (!alreadySelected) {
+        // Plain click on an unselected fixture replaces the whole selection.
         dispatch(setSelection({ fixtureIds: [hitFixtureId], zoneIds: [] }));
       }
+      // Plain click on an already-selected fixture keeps the multi-selection
+      // intact so the subsequent drag moves the whole set together.
+
       dragRef.current = {
         fixtureId: hitFixtureId,
         worldX: world.worldX,

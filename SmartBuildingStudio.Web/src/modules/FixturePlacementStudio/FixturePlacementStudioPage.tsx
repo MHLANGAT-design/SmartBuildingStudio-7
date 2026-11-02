@@ -234,11 +234,16 @@ const topBarLeft: React.CSSProperties = {
   flexShrink: 0,
 };
 
+// Allow the toolbar column to shrink and wrap inside the top bar
+// rather than overflow past the right edge. minWidth: 0 is required
+// for flex children with wide content; maxWidth: 100% clamps the
+// toolbar to the top bar's available width so nothing spills off-screen.
 const topBarRight: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  flexShrink: 0,
+  minWidth: 0,
+  maxWidth: '100%',
 };
 
 const brandText: React.CSSProperties = {

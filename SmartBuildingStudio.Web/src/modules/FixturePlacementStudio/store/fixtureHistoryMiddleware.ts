@@ -37,6 +37,7 @@ const MUTATION_LABELS: Record<string, string> = {
   'fixture/placeFixture': 'Place fixture',
   'fixture/moveFixtures': 'Move fixtures',
   'fixture/setFixturePositionAndRoom': 'Move fixture',
+  'fixture/repositionFixtures': 'Reposition fixtures',
   'fixture/rotateFixtures': 'Rotate fixtures',
   'fixture/deleteFixtures': 'Delete fixtures',
   'fixture/mergeFixtures': 'Import fixtures',
