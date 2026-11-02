@@ -105,6 +105,78 @@ export class WindowTool extends BaseTool {
     this.commitWindowPlacement(snapResult.point, activeHostId);
   }
 
+  /**
+   * Build the frame geometry for a window.
+   * Option D: the click face is the inner edge; the frame extends into the
+   * wall toward the opposite face.
+   *
+   *   wallSide = sign of the signed perpendicular distance from the wall
+   *              centerline to the click point. Negative or positive tells
+   *              us which face the user clicked on.
+   *   atOffset(from, t) = from + wallSide * t * wallNormal
+   *              t = 0            → click face
+   *              t = thickness    → opposite face
+   */
+  private buildFrameGeometry(startPt: Point2D, endPt: Point2D): {
+    c1: Point2D; c2: Point2D; c3: Point2D; c4: Point2D;
+    p1a: Point2D; p1b: Point2D;
+    p2a: Point2D; p2b: Point2D;
+    p3a: Point2D; p3b: Point2D;
+    jambA1: Point2D; jambA2: Point2D;
+    jambB1: Point2D; jambB2: Point2D;
+  } {
+    const PLAN_WALL_THICKNESS = 200;
+
+    // Wall axis — prefer snapped wall geometry; fall back to click pair direction.
+    let axisX = 1, axisY = 0;
+    if (this.activeWallStart && this.activeWallEnd) {
+      const wx = this.activeWallEnd.x - this.activeWallStart.x;
+      const wy = this.activeWallEnd.y - this.activeWallStart.y;
+      const wlen = Math.hypot(wx, wy);
+      if (wlen > 1e-9) { axisX = wx / wlen; axisY = wy / wlen; }
+    } else {
+      const a = Math.atan2(endPt.y - startPt.y, endPt.x - startPt.x);
+      axisX = Math.cos(a); axisY = Math.sin(a);
+    }
+
+    // Wall normal (unit perpendicular, CCW from axis).
+    const normalX = -axisY;
+    const normalY = axisX;
+
+    // Which side did the user click on?
+    let wallSide = 1;
+    if (this.activeWallStart && this.activeWallEnd) {
+      const signedPerp =
+        (startPt.x - this.activeWallStart.x) * normalX +
+        (startPt.y - this.activeWallStart.y) * normalY;
+      wallSide = signedPerp >= 0 ? 1 : -1;
+    }
+
+    const atOffset = (from: Point2D, t: number): Point2D => ({
+      x: from.x + wallSide * normalX * t,
+      y: from.y + wallSide * normalY * t,
+    });
+
+    const c1 = atOffset(startPt, 0);
+    const c2 = atOffset(endPt, 0);
+    const c3 = atOffset(endPt, PLAN_WALL_THICKNESS);
+    const c4 = atOffset(startPt, PLAN_WALL_THICKNESS);
+
+    const p1a = atOffset(startPt, PLAN_WALL_THICKNESS * 0.25);
+    const p1b = atOffset(endPt, PLAN_WALL_THICKNESS * 0.25);
+    const p2a = atOffset(startPt, PLAN_WALL_THICKNESS * 0.50);
+    const p2b = atOffset(endPt, PLAN_WALL_THICKNESS * 0.50);
+    const p3a = atOffset(startPt, PLAN_WALL_THICKNESS * 0.75);
+    const p3b = atOffset(endPt, PLAN_WALL_THICKNESS * 0.75);
+
+    const jambA1 = atOffset(startPt, 0);
+    const jambA2 = atOffset(startPt, PLAN_WALL_THICKNESS);
+    const jambB1 = atOffset(endPt, 0);
+    const jambB2 = atOffset(endPt, PLAN_WALL_THICKNESS);
+
+    return { c1, c2, c3, c4, p1a, p1b, p2a, p2b, p3a, p3b, jambA1, jambA2, jambB1, jambB2 };
+  }
+
   private commitWindowPlacement(finalPoint: Point2D, activeHostId: string): void {
     if (!this.startPoint || this.isProcessingCompletion) return;
     this.isProcessingCompletion = true;
@@ -116,37 +188,8 @@ export class WindowTool extends BaseTool {
 
     const windowModel = WindowFactory.create({ position: this.startPoint, endPosition: finalPoint, wallId: activeHostId });
 
-    const PLAN_WALL_THICKNESS = 200;
-    const halfT = PLAN_WALL_THICKNESS / 2;
-
-    const axisAngle = Math.atan2(ey - sy, ex - sx);
-    const perpX = -Math.sin(axisAngle);
-    const perpY = Math.cos(axisAngle);
-
-    const atOffset = (from: Point2D, offset: number) => ({
-      x: from.x + perpX * offset,
-      y: from.y + perpY * offset,
-    });
-
-    const startPt: Point2D = { x: sx, y: sy };
-    const endPt: Point2D = { x: ex, y: ey };
-
-    const c1 = atOffset(startPt, +halfT);
-    const c2 = atOffset(endPt, +halfT);
-    const c3 = atOffset(endPt, -halfT);
-    const c4 = atOffset(startPt, -halfT);
-
-    const p1a = atOffset(startPt, +halfT / 2);
-    const p1b = atOffset(endPt, +halfT / 2);
-    const p2a = startPt;
-    const p2b = endPt;
-    const p3a = atOffset(startPt, -halfT / 2);
-    const p3b = atOffset(endPt, -halfT / 2);
-
-    const jambA1 = atOffset(startPt, -halfT);
-    const jambA2 = atOffset(startPt, +halfT);
-    const jambB1 = atOffset(endPt, -halfT);
-    const jambB2 = atOffset(endPt, +halfT);
+    const { c1, c2, c3, c4, p1a, p1b, p2a, p2b, p3a, p3b, jambA1, jambA2, jambB1, jambB2 } =
+      this.buildFrameGeometry(this.startPoint, finalPoint);
 
     try {
       const currentState = store.getState();
@@ -172,15 +215,22 @@ export class WindowTool extends BaseTool {
         wallEnd: this.activeWallEnd ? { ...this.activeWallEnd } : undefined
       };
 
-      // ─── COMPOSITE ELEMENT (For Topology) ───
+      // Composite element — points[0] and points[1] are on the click face.
       const compositeWindowElement = {
         id: assignedWindowId,
         type: "window",
         composite: true,
-        points: [{ x: sx, y: sy }, { x: ex, y: ey }],
+        points: [c1, c2],
         geometry: {
           startX: sx, startY: sy, endX: ex, endY: ey,
-          width: Math.hypot(ex - sx, ey - sy)
+          width: Math.hypot(ex - sx, ey - sy),
+          wallThickness: 200,
+          // Inner face (click face)
+          innerStart: c1,
+          innerEnd: c2,
+          // Outer face (opposite)
+          outerStart: c4,
+          outerEnd: c3,
         },
         primitives: [
           { kind: "polyline", points: [c1, c2, c3, c4, c1] },
@@ -194,7 +244,6 @@ export class WindowTool extends BaseTool {
         originalLayer: "WINDOWS"
       };
 
-      // ─── RAW FRAGMENTS (For Renderer) ───
       const windowElements = [
         { id: `${assignedWindowId}_frame`, groupId: assignedWindowId, type: "window", subType: "frame", points: [c1, c2, c3, c4, c1], layer: "WINDOWS", isClosed: true },
         { id: `${assignedWindowId}_pane1`, groupId: assignedWindowId, type: "window", subType: "pane", points: [p1a, p1b], layer: "WINDOWS" },
@@ -258,46 +307,45 @@ export class WindowTool extends BaseTool {
     context.restore();
 
     if (this.startPoint && this.currentPoint && !this.isProcessingCompletion) {
+      // Mirror the commit geometry for the preview: build the same frame
+      // using currentPoint as the prospective end point, then convert to
+      // screen coordinates.
+      const { c1, c2, c3, c4, p2a, p2b } = this.buildFrameGeometry(this.startPoint, this.currentPoint);
+
+      const sC1 = activeViewport.worldToScreen(c1);
+      const sC2 = activeViewport.worldToScreen(c2);
+      const sC3 = activeViewport.worldToScreen(c3);
+      const sC4 = activeViewport.worldToScreen(c4);
+      const sM1 = activeViewport.worldToScreen(p2a);
+      const sM2 = activeViewport.worldToScreen(p2b);
+
       context.save();
       context.setTransform(1, 0, 0, 1, 0, 0);
+      context.lineWidth = 1.5;
+      context.strokeStyle = "#38BDF8";
 
-      const screenS = activeViewport.worldToScreen(this.startPoint);
-      const screenE = activeViewport.worldToScreen(this.currentPoint);
-      const dx = screenE.x - screenS.x;
-      const dy = screenE.y - screenS.y;
-      const length = Math.hypot(dx, dy);
+      // Frame rectangle
+      context.beginPath();
+      context.moveTo(sC1.x, sC1.y);
+      context.lineTo(sC2.x, sC2.y);
+      context.lineTo(sC3.x, sC3.y);
+      context.lineTo(sC4.x, sC4.y);
+      context.closePath();
+      context.stroke();
 
-      if (length > 2) {
-        let angle = Math.atan2(dy, dx);
-        if (this.activeWallStart && this.activeWallEnd) {
-          const ws = activeViewport.worldToScreen({ x: this.activeWallStart.x, y: this.activeWallStart.y });
-          const we = activeViewport.worldToScreen({ x: this.activeWallEnd.x, y: this.activeWallEnd.y });
-          angle = Math.atan2(we.y - ws.y, we.x - ws.x);
-        }
+      // Midline
+      context.beginPath();
+      context.moveTo(sM1.x, sM1.y);
+      context.lineTo(sM2.x, sM2.y);
+      context.stroke();
 
-        context.translate(screenS.x, screenS.y);
-        context.rotate(angle);
+      // Emphasize inner face (click face) with thicker line
+      context.lineWidth = 2.5;
+      context.beginPath();
+      context.moveTo(sC1.x, sC1.y);
+      context.lineTo(sC2.x, sC2.y);
+      context.stroke();
 
-        const wallThickness = 14;
-        context.lineWidth = 1.5;
-        context.strokeStyle = "#38BDF8";
-
-        context.strokeRect(0, -wallThickness / 2, length, wallThickness);
-
-        const paneOffset = wallThickness / 4;
-        context.beginPath();
-        context.moveTo(0, -paneOffset);
-        context.lineTo(length, -paneOffset);
-        context.moveTo(0, 0);
-        context.lineTo(length, 0);
-        context.moveTo(0, paneOffset);
-        context.lineTo(length, paneOffset);
-        context.stroke();
-
-        context.fillStyle = "#38BDF8";
-        context.fillRect(0, -wallThickness / 2, 2, wallThickness);
-        context.fillRect(length - 2, -wallThickness / 2, 2, wallThickness);
-      }
       context.restore();
     }
   }

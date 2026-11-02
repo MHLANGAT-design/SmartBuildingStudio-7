@@ -301,6 +301,7 @@ function buildFixtureElements(fixtures: any[], globalSelection: any, hiddenLayer
         elevation: f.elevation,
         layerId: f.layerId,
         daliGroup: Number(f.daliGroup ?? 1),
+        emergencyLight: f.emergencyLight,   // ← the only addition
         isSelected,
         selected: isSelected,
         style: {

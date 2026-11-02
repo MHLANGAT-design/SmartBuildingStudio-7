@@ -1,14 +1,9 @@
+// src/modules/FloorPlanDesigner/Tools/ToolManager.ts
+
 import { ITool, ToolPointerEvent } from "@/modules/FloorPlanDesigner/Tools/Base/ITool";
 import { ToolContext } from "@/modules/FloorPlanDesigner/Tools/Base/ToolContext";
+import { SplitWallTool } from "./SplitWallTool";
 
-/**
- * Manages the editor's tools infrastructure.
- *
- * Responsibilities:
- *  - Register layout workspace design tools
- *  - Activate/deactivate tools safely
- *  - Route pointer gesture/keyboard events straight to the active tool
- */
 export class ToolManager {
     private readonly tools = new Map<string, ITool>();
     private activeTool?: ITool;
@@ -18,15 +13,16 @@ export class ToolManager {
 
     constructor(context: ToolContext) {
         this.context = context;
+        this.registerDefaultTools();
+    }
+
+    private registerDefaultTools(): void {
+        this.register(new SplitWallTool());
     }
 
     public setDispatcher(dispatch: any): void {
         this.dispatchReference = dispatch;
     }
-
-    // --------------------------------------------------------
-    // Registration
-    // --------------------------------------------------------
 
     public register(tool: ITool): void {
         this.tools.set(tool.getId(), tool);
@@ -40,15 +36,14 @@ export class ToolManager {
         this.tools.delete(toolId);
     }
 
-    // --------------------------------------------------------
-    // Activation
-    // --------------------------------------------------------
-
     public activate(toolId: string): void {
         const tool = this.tools.get(toolId);
         if (!tool) {
-            console.error(`[ToolManager] ❌ Tool '${toolId}' not registered. Available:`, this.getRegisteredToolIds());
-            throw new Error(`Tool '${toolId}' is not registered inside the workspace collection.`);
+            console.error(
+                `[ToolManager] ❌ Tool '${toolId}' not registered. Available:`,
+                this.getRegisteredToolIds()
+            );
+            return;
         }
 
         if (this.activeTool?.getId() === toolId) {
@@ -64,10 +59,6 @@ export class ToolManager {
         this.activeTool?.deactivate();
         this.activeTool = undefined;
     }
-
-    // --------------------------------------------------------
-    // Queries
-    // --------------------------------------------------------
 
     public getTool(toolId: string): ITool | undefined {
         return this.tools.get(toolId);
@@ -89,10 +80,6 @@ export class ToolManager {
         return this.activeTool?.getId() === toolId;
     }
 
-    // --------------------------------------------------------
-    // Pointer Events
-    // --------------------------------------------------------
-
     public onPointerDown(event: ToolPointerEvent): void {
         this.activeTool?.onPointerDown(event);
     }
@@ -104,13 +91,16 @@ export class ToolManager {
     public onPointerUp(event: ToolPointerEvent): void {
         this.activeTool?.onPointerUp(event);
 
-        // Auto-selection logic (unchanged)
         if (this.dispatchReference && this.context) {
             try {
+                const toolId = this.activeTool?.getId();
+                if (toolId === "split-wall") {
+                    return;
+                }
+
                 const doc = this.context.getDocument?.() || (this.context as any).drawingDocument;
                 if (doc) {
                     let activeSelection: any = null;
-                    const toolId = this.activeTool?.getId();
 
                     if (toolId === "window") {
                         const windows = doc.getWindows?.() || doc.windows || [];
@@ -145,10 +135,6 @@ export class ToolManager {
         this.activeTool?.onDoubleClick(event);
     }
 
-    // --------------------------------------------------------
-    // Keyboard Events
-    // --------------------------------------------------------
-
     public onKeyDown(event: KeyboardEvent): void {
         this.activeTool?.onKeyDown(event);
     }
@@ -157,15 +143,21 @@ export class ToolManager {
         this.activeTool?.onKeyUp(event);
     }
 
-    // --------------------------------------------------------
-    // Tool Control
-    // --------------------------------------------------------
-
     public cancelCurrentTool(): void {
         this.activeTool?.cancel();
     }
 
-    public renderOverlay(context: CanvasRenderingContext2D): void {
+    public renderOverlay(
+        context: CanvasRenderingContext2D,
+        opts?: { viewport?: any; document?: any }
+    ): void {
+        // Forward viewport/document to the active tool so its renderOverlay
+        // can project world → screen. Without this, tools that guard on
+        // `if (!viewport) return` will silently bail.
+        if (this.activeTool) {
+            if (opts?.viewport) (this.activeTool as any).viewport = opts.viewport;
+            if (opts?.document) (this.activeTool as any).__document = opts.document;
+        }
         this.activeTool?.renderOverlay(context);
     }
 }

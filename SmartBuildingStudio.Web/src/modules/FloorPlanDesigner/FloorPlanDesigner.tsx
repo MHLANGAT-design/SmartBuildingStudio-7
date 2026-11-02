@@ -220,7 +220,13 @@ export const FloorPlanDesigner = () => {
         )}
 
         <div style={{ flexGrow: 1, width: "100%", height: "100%", position: "relative", overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", background: "#000000" }}>
-          <FloorPlanCanvas plan={effectiveDocumentState || currentDocument} activeTool={activeTool} isReadOnly={isReadOnly} />
+          <FloorPlanCanvas
+            plan={effectiveDocumentState || currentDocument}
+            activeTool={activeTool}
+            isReadOnly={isReadOnly}
+            toolManager={sharedToolManager}
+            toolContext={sharedToolContext}
+          />
           <CalibrationDialog isOpen={false} onClose={() => {}} onConfirm={(meters) => {
             dispatch(setCalibrationDistance({ knownDistance: meters, unit: "m" }));
             window.dispatchEvent(new CustomEvent("sbs:canvas-update"));

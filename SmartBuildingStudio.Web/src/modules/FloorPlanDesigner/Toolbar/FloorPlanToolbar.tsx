@@ -1,37 +1,20 @@
 // src/modules/FloorPlanDesigner/Toolbar/FloorPlanToolbar.tsx
-// ✅ Viewport import removed – component no longer depends on it
-//
-// LEVEL 1 READ-ONLY: the toolbar accepts isReadOnly and forwards it
-// to its child groups (ValidateGroup, FileGroup, EditGroup). Each group
-// is responsible for disabling its own edit buttons when isReadOnly
-// is true. Pan/zoom/select controls are NOT in this toolbar (they live
-// in GlobalZoomControl), so read-only mode doesn't affect them.
-//
-// ── ADDED ──
-//   MeasureCalibrateGroup renders in the "Canvas View" (utility) tab.
-//   It provides the only entry points to the calibration + measurement
-//   tools: buttons that dispatch setActiveTool('calibration' | 'measure')
-//   so FloorPlanCanvas instantiates CalibrationRulerTool / MeasurementRulerTool.
 
 import React, { useState } from "react";
+import { useAppDispatch, useAppSelector } from "@/Application/ConfigureStore";
 import { FloorPlanApi } from "@/modules/FloorPlanDesigner/Services/FloorPlanApi";
 import { ToolManager } from "@/modules/FloorPlanDesigner/Tools/ToolManager";
 import { DocumentManager } from "@/modules/FloorPlanDesigner/Document/DocumentManager";
 import { FileGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/FileGroup";
 import { EditGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/EditGroup";
 import { ValidateGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/ValidateGroup";
-// ── ADDED ──
 import { MeasureCalibrateGroup } from "@/modules/FloorPlanDesigner/Toolbar/Groups/MeasureCalibrateGroup";
+import { setActiveTool } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice"; // <-- Import setActiveTool
 
 export interface FloorPlanToolbarProps {
   api: FloorPlanApi;
   toolManager: ToolManager;
   documentManager: DocumentManager;
-  /**
-   * LEVEL 1 LOCK ENFORCEMENT — set by FloorPlanDesigner when the
-   * document is locked by another user. Forwarded to child groups
-   * so their edit buttons can be disabled.
-   */
   isReadOnly?: boolean;
 }
 
@@ -42,6 +25,8 @@ export const FloorPlanToolbar = ({
   isReadOnly = false,
 }: FloorPlanToolbarProps) => {
   const [activeSection, setActiveSection] = useState<"draw" | "file" | "utility">("draw");
+  const dispatch = useAppDispatch();
+  const activeTool = useAppSelector((s: any) => s.floorPlan.activeTool); // <-- Read active tool
 
   return (
     <div
@@ -102,7 +87,6 @@ export const FloorPlanToolbar = ({
           ))}
         </div>
 
-        {/* Status indicator */}
         <div
           style={{
             display: "flex",
@@ -181,10 +165,39 @@ export const FloorPlanToolbar = ({
               }}
             />
             <EditGroup documentManager={documentManager} isReadOnly={isReadOnly} />
+            
+            {/* ADDED: SPLIT WALL BUTTON */}
+            <div
+              style={{
+                width: "1px",
+                height: "16px",
+                background: "#1E293B",
+                margin: "0 4px",
+              }}
+            />
+            <button
+              onClick={() => dispatch(setActiveTool("split-wall"))}
+              disabled={isReadOnly}
+              style={{
+                background: activeTool === "split-wall" ? "rgba(56,189,248,0.2)" : "transparent",
+                border: `1px solid ${activeTool === "split-wall" ? "#38BDF8" : "#334155"}`,
+                color: activeTool === "split-wall" ? "#38BDF8" : "#94A3B8",
+                padding: "4px 10px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "bold",
+                fontFamily: "monospace",
+                cursor: isReadOnly ? "not-allowed" : "pointer",
+                opacity: isReadOnly ? 0.5 : 1,
+              }}
+              title="Split Wall"
+            >
+              ✂️ Split Wall
+            </button>
           </div>
         )}
 
-        {/* UTILITY — calibration + measurement entry points */}
+        {/* UTILITY */}
         {activeSection === "utility" && (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <MeasureCalibrateGroup isReadOnly={isReadOnly} />

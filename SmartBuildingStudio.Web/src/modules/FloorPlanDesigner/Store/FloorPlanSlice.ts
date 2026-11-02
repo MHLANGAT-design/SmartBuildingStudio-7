@@ -131,7 +131,7 @@ export interface FloorPlanUiState {
 }
 
 export type FloorPlanTool =
-  | "select" | "pan" | "wall" | "room" | "door" | "window" | "measure" | "calibration";
+  | "select" | "pan" | "wall" | "room" | "door" | "window" | "measure" | "calibration" | "split-wall"; // <-- ADDED split-wall
 
 export type FloorPlanMode =
   | "idle" | "drawing" | "editing" | "measuring" | "panning";

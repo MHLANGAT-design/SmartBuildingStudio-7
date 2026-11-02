@@ -104,13 +104,6 @@ export interface ComprehensiveUpdateFloorPlanPayloadDto {
 
 /**
  * Normalized DXF element shape.
- *
- * NOTE: this shape is used for fixtures and for the individual
- * properties read by fixtures. It is NO LONGER applied to the whole
- * `elements` array on save or load. Composite elements (doors,
- * windows, walls) must round-trip verbatim with their `composite`,
- * `primitives`, and `geometry` fields intact. See toLegacyBackend
- * and fromLegacyBackend for the verbatim element pass-through.
  */
 interface PersistedElement {
   id: string;
@@ -196,6 +189,12 @@ function normalizeFixture(f: any) {
     elevation: f.elevation ?? f.Elevation,
     layerId: f.layerId ?? f.LayerId,
     daliGroup: Number(f.daliGroup ?? f.DaliGroup ?? 1),
+    // Emergency-light payload — classification, operationMode,
+    // autonomyMinutes, onEscapeRoute, overrides. Must be preserved
+    // through every normalize/project step or the EL module loses
+    // the ability to render glyphs, classify exit signs, or display
+    // autonomy.
+    emergencyLight: f.emergencyLight ?? f.EmergencyLight,
   };
 }
 
@@ -217,6 +216,7 @@ function fixtureToElement(f: any) {
     elevation: n.elevation,
     layerId: n.layerId,
     daliGroup: n.daliGroup,
+    emergencyLight: n.emergencyLight,
     layer: 'fixtures',
     originalLayer: 'fixtures',
   };
@@ -616,11 +616,6 @@ export class BackendPayloadMapper {
       id: documentId || documentName || `doc-${Date.now()}`,
       name: documentName,
 
-      // ── Metadata passthrough ─────────────────────────────────────
-      // The backend returns breadcrumb + lock fields on the same
-      // GET /documents/{id} request. Preserve them so Redux has them
-      // and downstream consumers (breadcrumb widget, read-only
-      // banner, save thunk) work correctly.
       projectName:
         payload.projectName ??
         payload.ProjectName ??
@@ -651,7 +646,6 @@ export class BackendPayloadMapper {
           ? payload.Version
           : null,
 
-      // Legacy field names that Redux reducers still read first
       activeProjectName:
         payload.projectName ??
         payload.ProjectName ??
