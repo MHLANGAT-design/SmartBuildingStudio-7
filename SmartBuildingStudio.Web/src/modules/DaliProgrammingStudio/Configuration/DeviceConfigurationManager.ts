@@ -1,7 +1,7 @@
 // src/modules/DaliProgrammingStudio/Configuration/DeviceConfigurationManager.ts
 
 import type { DaliDeviceDefinition } from '@/modules/DaliProgrammingStudio/types/device.types';
-import type { DaliCommandSequence } from '@/modules/DaliProgrammingStudio/types/command.types';
+import type { DaliCommandSequence, DaliCommand } from '@/modules/DaliProgrammingStudio/types/command.types';
 import { ControlGearConfigurator } from '@/modules/DaliProgrammingStudio/Configuration/ControlGearConfigurator';
 import { ControlDeviceConfigurator } from '@/modules/DaliProgrammingStudio/Configuration/ControlDeviceConfigurator';
 import { GroupConfigurationManager } from '@/modules/DaliProgrammingStudio/Configuration/GroupConfigurationManager';
@@ -22,7 +22,7 @@ export class DeviceConfigurationManager {
     const deviceModel = new DaliDevice(device);
     const sequences: DaliCommandSequence[] = [];
 
-    let paramCommands = [];
+    let paramCommands: DaliCommand[] = [];
     if (deviceModel.isControlGear()) {
       paramCommands = this.controlGearConfigurator.buildCommands(device);
     } else if (deviceModel.isControlDevice()) {

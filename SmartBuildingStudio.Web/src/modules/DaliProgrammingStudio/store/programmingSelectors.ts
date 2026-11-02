@@ -32,7 +32,7 @@ export const selectCanDeploy = (state: RootState) => {
   return state_.programmingPlan !== null 
     && !state_.isCompiling 
     && !state_.isDeploying
-    && state_.jobState !== 'DEPLOYING';
+    && state_.jobState !== 'Deploying'; // Corrected casing
 };
 
 export const selectDeploymentPercentage = (state: RootState) => {

@@ -3,9 +3,6 @@
 import type { VerificationStatus } from '@/modules/DaliProgrammingStudio/constants/programmingConstants';
 import type { VerificationCheck } from '@/modules/DaliProgrammingStudio/types/command.types';
 
-/**
- * The result of verifying a single device against its expected configuration.
- */
 export interface DeviceVerificationResult {
   deviceId: string;
   shortAddress: number;
@@ -14,19 +11,23 @@ export interface DeviceVerificationResult {
   readBackErrors: string[];
 }
 
-/**
- * The overall verification report for a deployment.
- */
 export interface VerificationReport {
   reportId: string;
   deploymentId: string;
   timestamp: string;
   overallStatus: VerificationStatus;
-  deviceResults: DeviceVerificationResult[];
+  deviceResults: DeviceVerificationResult[]; // Added
+  results: VerificationCheck[];              // Added (used elsewhere)
   summary: {
     totalDevices: number;
-    matchingDevices: number;
+    matchingDevices: number;                 // Added
     failingDevices: number;
     unverifiedDevices: number;
+    totalChecks: number;
+    passed: number;
+    failed: number;
+    notSupported: number;
+    notTested: number;
   };
+  isFullyVerified: boolean;                  // Added (used by selector)
 }

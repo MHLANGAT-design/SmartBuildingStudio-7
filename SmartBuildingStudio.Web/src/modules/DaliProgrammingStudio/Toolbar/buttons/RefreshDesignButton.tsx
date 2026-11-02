@@ -9,9 +9,9 @@ export const RefreshDesignButton: React.FC = () => {
   const { loadDesign } = useDaliDesign();
   const design = useAppSelector(selectApprovedDesign);
 
-  const handleClick = async () => {
+  const handleClick = () => {
     if (design?.topology.projectId) {
-      await loadDesign(design.topology.projectId);
+      loadDesign(); // Fixed: No arguments required
     }
   };
 

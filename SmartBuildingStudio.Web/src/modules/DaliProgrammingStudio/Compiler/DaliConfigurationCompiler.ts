@@ -2,7 +2,7 @@
 
 import type { ApprovedDaliDesign } from '@/modules/DaliProgrammingStudio/types/dali.types';
 import type { DaliCommandSequence } from '@/modules/DaliProgrammingStudio/types/command.types';
-import type { CompilationResult } from '@/modules/DaliProgrammingStudio/Compiler/CompilationResult';
+import type { CompilationResult, CompilationError, CompilationWarning } from '@/modules/DaliProgrammingStudio/Compiler/CompilationResult';
 import type { ProgrammingPlan } from '@/modules/DaliProgrammingStudio/Compiler/ProgrammingPlanBuilder';
 
 import { DesignInputResolver } from '@/modules/DaliProgrammingStudio/Compiler/DesignInputResolver';
@@ -25,8 +25,8 @@ export class DaliConfigurationCompiler {
   private planBuilder = new ProgrammingPlanBuilder();
 
   public compile(design: ApprovedDaliDesign): { result: CompilationResult; plan: ProgrammingPlan | null } {
-    const errors = [];
-    const warnings = [];
+    const errors: CompilationError[] = [];
+    const warnings: CompilationWarning[] = [];
     const allSequences: DaliCommandSequence[] = [];
 
     try {
@@ -58,7 +58,6 @@ export class DaliConfigurationCompiler {
         let deviceSequences: DaliCommandSequence[] = [];
         
         if (this.capabilityResolver.canProgramParameters(normalized)) {
-          // In a real implementation, we might selectively build sequences based on capability
           deviceSequences = this.sequenceBuilder.buildForDevice(normalized);
         } else {
           warnings.push({
@@ -117,7 +116,7 @@ export class DaliConfigurationCompiler {
           success: true,
           planId: plan.planId,
           designRevisionId: design.revisionId,
-          instructions: ordered as any, // Casting for now, as CompilationResult instructions expects ProgrammingInstruction
+          instructions: ordered as any,
           warnings,
           errors: [],
           compiledAt: new Date().toISOString(),

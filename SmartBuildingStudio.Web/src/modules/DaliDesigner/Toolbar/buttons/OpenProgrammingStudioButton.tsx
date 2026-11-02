@@ -3,7 +3,6 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch } from '@/Application/ConfigureStore';
-import { resetDaliDocument } from '@/modules/DaliDesigner/store/daliSlice';
 import { resetProgrammingState } from '@/modules/DaliProgrammingStudio/store/programmingSlice';
 
 export const OpenProgrammingStudioButton: React.FC = () => {
@@ -18,13 +17,8 @@ export const OpenProgrammingStudioButton: React.FC = () => {
   if (!projectId || !floorplanId) return null;
 
   const handleClick = () => {
-    // CRITICAL: Clear the state before navigating so the new page
-    // forces a fresh fetch from the database.
+    // Clear the programming state to force a fresh fetch on the destination page
     dispatch(resetProgrammingState());
-    
-    // We don't necessarily need to reset the DALI document here because
-    // the DALI Designer page will unmount, but doing so ensures a clean slate.
-    // dispatch(resetDaliDocument()); 
 
     const url = networkId
       ? `/projects/${projectId}/floorplans/${floorplanId}/programming/${networkId}`
