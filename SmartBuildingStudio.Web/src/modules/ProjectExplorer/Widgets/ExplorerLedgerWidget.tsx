@@ -1,3 +1,5 @@
+// src/modules/ProjectExplorer/Widgets/ExplorerLedgerWidget.tsx
+
 import React from 'react';
 
 interface ExplorerLedgerWidgetProps {
@@ -7,7 +9,7 @@ interface ExplorerLedgerWidgetProps {
 
 export default function ExplorerLedgerWidget({ projects, loading }: ExplorerLedgerWidgetProps) {
   return (
-    <div style={{ bg: "rgba(11, 15, 25, 0.4)", border: "1px solid #1E293B", borderRadius: "16px", overflow: "hidden", backdropFilter: "blur(12px)", boxSizing: "border-box" }}>
+    <div style={{ background: "rgba(11, 15, 25, 0.4)", border: "1px solid #1E293B", borderRadius: "16px", overflow: "hidden", backdropFilter: "blur(12px)", boxSizing: "border-box" }}>
       <div style={{ padding: "16px", borderBottom: "1px solid #1E293B", background: "rgba(15, 23, 42, 0.4)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "14px" }}>🏢</span>
