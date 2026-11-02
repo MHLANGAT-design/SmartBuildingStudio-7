@@ -1,15 +1,4 @@
 // src/modules/Dashboard/Widgets/QuickLaunchWidget.tsx
-//
-// Compact single-row navigation hub for the Dashboard.
-//
-// Each button routes to a module entry point. Engineered studios
-// (Floor Plan Designer, FPS, DALI, Emergency) route through ProjectExplorer
-// with an `intent` query param so the user picks a document from the tree
-// first. ProjectExplorer then either skips the DesignAccessModal or
-// shows it depending on the intent.
-//
-// Each button is a colored chip: icon on an accent-colored tile,
-// module short label, tinted background, hover raises the accent.
 
 import { useNavigate } from "react-router-dom";
 
@@ -55,6 +44,13 @@ export default function QuickLaunchWidget() {
       accent: "#8B5CF6",
     },
     {
+      name: "DALI Programming",
+      shortLabel: "Program",
+      path: "/explorer?intent=programming",
+      icon: "🔧",
+      accent: "#22C55E",
+    },
+    {
       name: "Emergency Lighting",
       shortLabel: "Emergency",
       path: "/explorer?intent=emergency",
@@ -96,9 +92,8 @@ export default function QuickLaunchWidget() {
             alignItems: "center",
             gap: 10,
             padding: "6px 14px 6px 6px",
-            // Tinted background: accent color at ~8% opacity
-            background: `${mod.accent}14`, // "14" hex = 0x14 = 20/255 ≈ 8%
-            border: `1px solid ${mod.accent}40`, // 0x40 = 64/255 ≈ 25%
+            background: `${mod.accent}14`,
+            border: `1px solid ${mod.accent}40`,
             borderRadius: 10,
             color: "#E2E8F0",
             fontFamily: "monospace",
@@ -112,7 +107,7 @@ export default function QuickLaunchWidget() {
           }}
           onMouseEnter={(e) => {
             if (!mod.disabled) {
-              e.currentTarget.style.background = `${mod.accent}28`; // 0x28 = 40/255 ≈ 16%
+              e.currentTarget.style.background = `${mod.accent}28`;
               e.currentTarget.style.borderColor = mod.accent;
               e.currentTarget.style.color = mod.accent;
             }
@@ -125,7 +120,6 @@ export default function QuickLaunchWidget() {
             }
           }}
         >
-          {/* Icon tile — solid accent background, dark icon glyph */}
           <span
             style={{
               width: 26,

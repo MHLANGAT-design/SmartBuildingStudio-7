@@ -1,14 +1,16 @@
 // src/modules/ProjectExplorer/Sidebar/DocumentActionsPanel.tsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle } from "lucide-react";
+import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle, Cpu } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/Application/ConfigureStore";
 import {
   selectSelectedNode,
 } from "@/modules/ProjectExplorer/Store/ProjectExplorerSelectors";
 import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
+import { resetProgrammingState } from "@/modules/DaliProgrammingStudio/store/programmingSlice";
+import { resetDaliDocument } from "@/modules/DaliDesigner/store/daliSlice";
 
-type Mode = "floorplans" | "fixtures" | "import" | "dali" | "emergency";
+type Mode = "floorplans" | "fixtures" | "dali" | "emergency" | "programming" | "import";
 
 interface ActionTile {
   mode: Mode;
@@ -41,11 +43,18 @@ const TILES: ActionTile[] = [
     accent: "#8B5CF6",
   },
   {
+    mode: "programming",
+    label: "DALI Programming",
+    hint: "Compile and deploy the approved DALI design",
+    icon: <Cpu size={18} />,
+    accent: "#22C55E", // Green to distinguish from DALI Designer
+  },
+  {
     mode: "emergency",
     label: "Emergency Lighting",
     hint: "Run compliance simulation and export safety reports",
     icon: <AlertTriangle size={18} />,
-    accent: "#F43F5E", // Rose/Red color for safety/emergency
+    accent: "#F43F5E",
   },
   {
     mode: "import",
@@ -100,9 +109,7 @@ export function DocumentActionsPanel() {
     );
   }
 
-  // Resolve the ancestor chain from the tree. This mirrors the
-  // parentId walk used elsewhere in the Explorer and does not depend
-  // on any external hook shape.
+  // Resolve the ancestor chain from the tree.
   const ancestors = resolveAncestors(selectedNode, nodes);
 
   const projectId = ancestors.project?.id ?? null;
@@ -119,7 +126,6 @@ export function DocumentActionsPanel() {
 
     // 1. Dispatch metadata so the store's floorPlan.document slice
     //    holds the correct names and context before navigating.
-    //    FloorPlanDesigner reads from here on mount.
     dispatch(
       setDocumentMetadata({
         id: String(documentId),
@@ -144,7 +150,6 @@ export function DocumentActionsPanel() {
     );
 
     // 2. Expose the same context on window for peripheral integrations
-    //    (FixturePlacementStudio, DALI Designer, Emergency Lighting, etc.).
     (window as any).__activeDocumentId = String(documentId);
     (window as any).__designerMode = mode;
     (window as any).__activeDocumentContext = {
@@ -161,12 +166,22 @@ export function DocumentActionsPanel() {
     // 3. Navigate to the chosen studio.
     if (mode === "dali") {
       if (!projectId) {
-        console.warn(
-          "[DocumentActionsPanel] Cannot open DALI: missing projectId"
-        );
+        console.warn("[DocumentActionsPanel] Cannot open DALI: missing projectId");
         return;
       }
+      dispatch(resetDaliDocument()); // Clear stale state
       navigate(`/projects/${projectId}/floorplans/${documentId}/dali`);
+      return;
+    }
+
+    if (mode === "programming") {
+      if (!projectId) {
+        console.warn("[DocumentActionsPanel] Cannot open Programming: missing projectId");
+        return;
+      }
+      dispatch(resetDaliDocument()); // Clear stale DALI state
+      dispatch(resetProgrammingState()); // Clear stale Programming state
+      navigate(`/projects/${projectId}/floorplans/${documentId}/programming`);
       return;
     }
 

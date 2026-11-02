@@ -10,6 +10,7 @@ import ProjectExplorerReducer from "@/modules/ProjectExplorer/Store/ProjectExplo
 import FixtureReducer from "@/modules/FixturePlacementStudio/store/fixtureSlice";
 import { daliReducer } from "@/modules/DaliDesigner/store/daliSlice";
 import { emergencyReducer } from "@/modules/EmergencyLighting/store/emergencySlice";
+import { daliProgrammingReducer } from "@/modules/DaliProgrammingStudio/store"; // NEW
 import documentVersionReducer from "@/modules/Shared/DocumentVersion/documentVersionSlice";
 import { fixtureHistoryMiddleware } from "@/modules/FixturePlacementStudio/store/fixtureHistoryMiddleware";
 
@@ -53,6 +54,7 @@ export const store: any = configureStore({
     fixture: FixtureReducer,
     dali: daliReducer,
     emergency: emergencyReducer,
+    daliProgramming: daliProgrammingReducer, // NEW
     documentVersion: documentVersionReducer,
   },
   middleware: (getDefaultMiddleware: any) =>

@@ -7,35 +7,25 @@ import { Provider } from 'react-redux';
 import { store } from '@/Application/ConfigureStore';
 import { useAppDispatch } from '@/Application/ConfigureStore';
 
-// ── Service bootstrap — wires module-level singletons before render ──
 import { bootstrap } from '@/Application/ServiceBootstrap';
-
-// Layout
 import { AppShell } from '@/Application/Layout/AppShell';
 
-// Core Application Pages Layout Assets
 import DashboardPage from '@/modules/Dashboard/DashboardPage';
 import ProjectExplorerPage from '@/modules/ProjectExplorer/ProjectExplorerPage';
 import { FloorPlanDesigner } from '@/modules/FloorPlanDesigner/FloorPlanDesigner';
 import { FixturePlacementStudioPage } from '@/modules/FixturePlacementStudio';
 import { DaliDesignerPage } from '@/modules/DaliDesigner';
+import { DaliProgrammingStudioPage } from '@/modules/DaliProgrammingStudio';
 import { EmergencyLightingPage } from '@/modules/EmergencyLighting';
 import { ManufacturerAdminPage } from '@/modules/Admin/ManufacturerAdminPage';
 
-// Slice actions used by the document boundary.
 import { clearDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
 import { resetDaliDocument } from '@/modules/DaliDesigner/store/daliSlice';
 import { reset as resetFixture } from '@/modules/FixturePlacementStudio/store/fixtureSlice';
 
 (window as any).store = store;
-
-// ── Bootstrap services before the store is touched by any component. ─
 bootstrap();
 
-/**
- * DocumentBoundary — clears document-scoped state when the URL's
- * documentId changes.
- */
 const DocumentBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
@@ -50,16 +40,10 @@ const DocumentBoundary: React.FC<{ children: React.ReactNode }> = ({ children })
 
     lastDocIdRef.current = urlDocumentId;
 
-    // Floor plan slice: geometry, elements, fixtures, metadata.
     dispatch(clearDocument());
-
-    // DALI slice: fixtures, groups, scenes, networks, selection.
     dispatch(resetDaliDocument());
-
-    // Fixture Placement slice: layout, placed fixtures, zones, calculations.
     dispatch(resetFixture());
 
-    // Legacy globals that mirror document state.
     if (typeof window !== 'undefined') {
       const win = window as any;
       win.__persistentDwgVectorBackupCache = [];
@@ -73,9 +57,6 @@ const DocumentBoundary: React.FC<{ children: React.ReactNode }> = ({ children })
   return <>{children}</>;
 };
 
-/**
- * Deep-link route wrapper for the DALI Designer.
- */
 const DaliRoute = () => {
   const { projectId, floorplanId, networkId } = useParams<{
     projectId: string;
@@ -86,9 +67,16 @@ const DaliRoute = () => {
   return <DaliDesignerPage />;
 };
 
-/**
- * Designer route dispatcher.
- */
+const DaliProgrammingRoute = () => {
+  const { projectId, floorplanId, networkId } = useParams<{
+    projectId: string;
+    floorplanId: string;
+    networkId?: string;
+  }>();
+
+  return <DaliProgrammingStudioPage />;
+};
+
 const DesignerRoute = () => {
   const [searchParams] = useSearchParams();
   const rawMode = (searchParams.get('mode') || 'floorplans').toLowerCase();
@@ -117,6 +105,31 @@ const DesignerRoute = () => {
 
       return <DaliDesignerPage />;
     }
+    case 'programming': {
+      const projectId = searchParams.get('projectId') || undefined;
+      const floorplanId = searchParams.get('floorplanId') || undefined;
+      const networkId = searchParams.get('networkId') || undefined;
+
+      if (!projectId || !floorplanId) {
+        return (
+          <div style={{ padding: 20, color: '#FFF', fontFamily: 'monospace' }}>
+            <h1>DALI Programming &amp; Configuration</h1>
+            <p>Missing required context.</p>
+            <p>
+              Provide <code>?projectId=…&amp;floorplanId=…</code> or open
+              the deep link from ProjectExplorer.
+            </p>
+          </div>
+        );
+      }
+
+      // Redirect to the canonical deep-link URL so useHydrateDaliDesign
+      // reads params from useParams (matching DaliDesignerPage's pattern).
+      const target = networkId
+        ? `/projects/${projectId}/floorplans/${floorplanId}/programming/${networkId}`
+        : `/projects/${projectId}/floorplans/${floorplanId}/programming`;
+      return <Navigate to={target} replace />;
+    }
     case 'emergency':
       return <EmergencyLightingPage />;
     case 'import':
@@ -144,33 +157,20 @@ const App = () => {
             element={<DaliRoute />}
           />
 
-          {/* Admin */}
+          <Route
+            path="/projects/:projectId/floorplans/:floorplanId/programming/:networkId?"
+            element={<DaliProgrammingRoute />}
+          />
+
           <Route path="/admin/manufacturers" element={<ManufacturerAdminPage />} />
 
-          <Route
-            path="/designer/floorplan"
-            element={<Navigate to="/designer?mode=floorplans" replace />}
-          />
-          <Route
-            path="/designer/floorplans"
-            element={<Navigate to="/designer?mode=floorplans" replace />}
-          />
-          <Route
-            path="/designer/edit"
-            element={<Navigate to="/designer?mode=floorplans" replace />}
-          />
-          <Route
-            path="/designer/fixtures"
-            element={<Navigate to="/designer?mode=fixtures" replace />}
-          />
-          <Route
-            path="/designer/dali"
-            element={<Navigate to="/designer?mode=dali" replace />}
-          />
-          <Route
-            path="/designer/emergency"
-            element={<Navigate to="/designer?mode=emergency" replace />}
-          />
+          <Route path="/designer/floorplan" element={<Navigate to="/designer?mode=floorplans" replace />} />
+          <Route path="/designer/floorplans" element={<Navigate to="/designer?mode=floorplans" replace />} />
+          <Route path="/designer/edit" element={<Navigate to="/designer?mode=floorplans" replace />} />
+          <Route path="/designer/fixtures" element={<Navigate to="/designer?mode=fixtures" replace />} />
+          <Route path="/designer/dali" element={<Navigate to="/designer?mode=dali" replace />} />
+          <Route path="/designer/programming" element={<Navigate to="/designer?mode=programming" replace />} />
+          <Route path="/designer/emergency" element={<Navigate to="/designer?mode=emergency" replace />} />
 
           <Route
             path="*"

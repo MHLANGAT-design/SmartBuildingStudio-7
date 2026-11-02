@@ -12,6 +12,7 @@ import { SceneGroup } from "./groups/SceneGroup";
 import { GroupingGroup } from "./groups/GroupingGroup";
 import { ValidationGroup } from "./groups/ValidationGroup";
 import { useDaliLockState } from "@/modules/DaliDesigner/hooks/useDaliLockState";
+import { OpenProgrammingStudioButton } from "@/modules/DaliDesigner/Toolbar/buttons/OpenProgrammingStudioButton";
 
 export function DaliToolbar() {
   const { isReadOnly, lockedByUsername } = useDaliLockState();
@@ -25,14 +26,17 @@ export function DaliToolbar() {
       <SceneGroup />
       <ValidationGroup />
 
-      {isReadOnly && (
-        <span
-          style={readOnlyBadge}
-          title={`Locked by ${lockedByUsername || "another user"}`}
-        >
-          🔒 READ-ONLY
-        </span>
-      )}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+        <OpenProgrammingStudioButton />
+        {isReadOnly && (
+          <span
+            style={readOnlyBadge}
+            title={`Locked by ${lockedByUsername || "another user"}`}
+          >
+            🔒 READ-ONLY
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -50,7 +54,6 @@ const readOnlyBadge: React.CSSProperties = {
   borderRadius: 4,
   padding: "3px 8px",
   letterSpacing: "0.05em",
-  marginLeft: "auto",
 };
 
 export default DaliToolbar;
