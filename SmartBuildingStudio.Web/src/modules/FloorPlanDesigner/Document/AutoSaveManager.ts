@@ -1,5 +1,6 @@
-import { DrawingDocument } from "@/modules/FloorPlanDesigner/Document/DrawingDocument";
-import { DocumentSerializer } from "@/modules/FloorPlanDesigner/Document/DocumentSerializer";
+// src/modules/FloorPlanDesigner/Document/AutoSaveManager.ts
+
+import { BackendPayloadMapper } from "@/modules/FloorPlanDesigner/Store/BackendPayloadMapper";
 
 export interface AutoSaveOptions {
     /**
@@ -13,6 +14,19 @@ export interface AutoSaveOptions {
     enabled?: boolean;
 }
 
+/**
+ * AutoSaveManager — periodically serializes the current floor plan and
+ * hands the JSON to a callback.
+ *
+ * IMPORTANT: `start()` is not called anywhere yet. Autosave is opt-in —
+ * plans under active development should not be auto-saved to production
+ * storage until the user explicitly enables it.
+ *
+ * Serialization uses BackendPayloadMapper.toLegacyBackend, matching the
+ * payload shape produced by the saveDrawing thunk. AutoSaveManager is
+ * agnostic about whether the callback persists to the backend, a version
+ * manager, or just logs — the callback decides.
+ */
 export class AutoSaveManager {
     private enabled: boolean;
     private interval: number;
@@ -30,7 +44,7 @@ export class AutoSaveManager {
     // --------------------------------------------------------
 
     public start(
-        document: DrawingDocument,
+        getDocument: () => any,
         onAutoSave: (json: string) => void
     ): void {
         if (!this.enabled || this.timer) {
@@ -38,10 +52,22 @@ export class AutoSaveManager {
         }
 
         this.timer = setInterval(() => {
-            const json = DocumentSerializer.toJson(document, false);
-            this.lastSnapshot = json;
-            this.lastAutoSave = new Date();
-            onAutoSave(json);
+            try {
+                const document = getDocument();
+                if (!document) return;
+
+                const payload = BackendPayloadMapper.toLegacyBackend(document);
+                const json = JSON.stringify(payload);
+
+                // Skip save if nothing has changed since the last snapshot
+                if (json === this.lastSnapshot) return;
+
+                this.lastSnapshot = json;
+                this.lastAutoSave = new Date();
+                onAutoSave(json);
+            } catch (e: any) {
+                console.warn("[AutoSaveManager] Autosave tick failed:", e?.message || e);
+            }
         }, this.interval);
     }
 
@@ -55,11 +81,11 @@ export class AutoSaveManager {
     }
 
     public restart(
-        document: DrawingDocument,
+        getDocument: () => any,
         callback: (json: string) => void
     ): void {
         this.stop();
-        this.start(document, callback);
+        this.start(getDocument, callback);
     }
 
     // --------------------------------------------------------
@@ -101,3 +127,5 @@ export class AutoSaveManager {
         return this.timer !== undefined;
     }
 }
+
+export default AutoSaveManager;
