@@ -58,7 +58,7 @@ export function useEvacuationRoutes() {
     }
 
     const nextNum =
-      routes.reduce((max, r) => {
+      routes.reduce((max: number, r: any) => {
         const m = /^Route (\d+)$/.exec(r.name ?? '');
         return m ? Math.max(max, Number(m[1])) : max;
       }, 0) + 1;

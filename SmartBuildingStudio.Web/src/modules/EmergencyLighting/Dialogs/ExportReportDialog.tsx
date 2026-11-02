@@ -23,7 +23,7 @@ import {
   type ExportFormat,
   type EmergencyExportInput,
 } from '@/modules/EmergencyLighting/services/ExportService';
-import { downloadBlob } from '@/application/downloadBlob';
+import { downloadBlob } from '@/Application/downloadBlob';
 
 interface ExportReportDialogProps {
   isOpen: boolean;

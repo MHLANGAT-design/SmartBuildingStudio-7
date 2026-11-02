@@ -25,7 +25,7 @@ import {
   ExportService,
   type EmergencyExportInput,
 } from '@/modules/EmergencyLighting/services/ExportService';
-import { downloadBlob } from '@/application/downloadBlob';
+import { downloadBlob } from '@/Application/downloadBlob';
 
 interface ComplianceReportDialogProps {
   isOpen: boolean;

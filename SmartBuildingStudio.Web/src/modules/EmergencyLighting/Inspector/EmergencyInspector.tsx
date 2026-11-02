@@ -1,7 +1,4 @@
 // src/modules/EmergencyLighting/Inspector/EmergencyInspector.tsx
-//
-// Right panel. Element inspector above, compliance panel below, each
-// scrolling independently. Compliance is always visible.
 
 import React from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
@@ -25,9 +22,10 @@ export const EmergencyInspector: React.FC = () => {
     selectEmergencyFixtureById(s, selectedFixtureId)
   );
 
+  // Cast to any because 'emergencyLight' was removed from the strict Fixture type
   const isExitSign =
     selectedFixture?.kind === 'emergencyLight' &&
-    selectedFixture.emergencyLight?.classification === 'exit-sign';
+    (selectedFixture as any).emergencyLight?.classification === 'exit-sign';
 
   let headerLabel = 'Properties';
   let elementInspector: React.ReactNode = (
@@ -43,8 +41,9 @@ export const EmergencyInspector: React.FC = () => {
     );
   } else if (selectedFixtureId && isExitSign) {
     headerLabel = 'Exit Sign Inspector';
+    // Removed fixtureId prop because ExitSignInspector reads selection from Redux
     elementInspector = (
-      <ExitSignInspector key={selectedFixtureId} fixtureId={selectedFixtureId} />
+      <ExitSignInspector key={selectedFixtureId} />
     );
   } else if (selectedFixtureId) {
     headerLabel = 'Fixture Inspector';
@@ -53,8 +52,9 @@ export const EmergencyInspector: React.FC = () => {
     );
   } else if (selectedZoneId) {
     headerLabel = 'Zone Inspector';
+    // Removed zoneId prop because ZoneInspector reads selection from Redux
     elementInspector = (
-      <ZoneInspector key={selectedZoneId} zoneId={selectedZoneId} />
+      <ZoneInspector key={selectedZoneId} />
     );
   }
 

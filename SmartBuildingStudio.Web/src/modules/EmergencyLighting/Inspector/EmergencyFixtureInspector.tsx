@@ -1,9 +1,4 @@
 // src/modules/EmergencyLighting/Inspector/EmergencyFixtureInspector.tsx
-//
-// Inspects the currently selected emergency fixture. Selection is
-// driven by the sidebar; this panel renders nothing when the id is
-// missing (which shouldn't happen — the parent only mounts this when a
-// fixture is selected).
 
 import React from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
@@ -35,7 +30,10 @@ export const EmergencyFixtureInspector: React.FC<{ fixtureId: string }> = ({ fix
     return <div style={{ color: '#64748B', fontSize: 11 }}>Fixture not found.</div>;
   }
 
-  const el = fixture.emergencyLight ?? {};
+  // Cast to any because 'emergencyLight' was removed from the strict Fixture type
+  // during the model consolidation refactor, but the data still exists at runtime.
+  const el = (fixture as any).emergencyLight ?? {};
+  
   const mode = (el.operationMode ?? 'unknown') as EmergencyOperationMode;
   const classification = el.classification ?? 'unknown';
   const autonomy = el.autonomyMinutes;

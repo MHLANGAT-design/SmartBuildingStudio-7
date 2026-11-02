@@ -33,7 +33,10 @@ export const ExitSignInspector: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {signs.map((f) => {
-          const el = f.emergencyLight ?? {};
+          // Cast to any because 'emergencyLight' was removed from the strict Fixture type
+          // during the model consolidation refactor, but the data exists at runtime.
+          const el = (f as any).emergencyLight ?? {};
+          
           const roomId = f.roomId ?? null;
           const roomName = roomId ? roomNames[roomId] ?? roomId : '—';
           const rotationDeg = ((f.rotation ?? 0) * 180) / Math.PI;
