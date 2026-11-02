@@ -8,7 +8,7 @@ import React, { useState, useEffect, useMemo, FormEvent } from "react";
 import { useAppSelector, useAppDispatch } from "@/Application/ConfigureStore";
 import { setDocument } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 import { ReclassifyControls } from "./ReclassifyControls";
-import { useFloorPlanLockState } from "@/modules/FloorPlanDesigner/hooks/useFloorPlanLockState";
+import { useFloorPlanLockState } from "@/modules/FloorPlanDesigner/Hooks/useFloorPlanLockState";
 
 interface WindowInspectorProps {
   selection?: any;

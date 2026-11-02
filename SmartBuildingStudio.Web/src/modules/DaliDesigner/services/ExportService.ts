@@ -6,7 +6,7 @@ import { DaliDevice } from "@/modules/DaliDesigner/models/DaliDevice";
 import { DaliLine } from "@/modules/DaliDesigner/models/DaliLine";
 import { Group } from "@/modules/DaliDesigner/models/Group";
 import type { FloorplanRenderModel } from "@/modules/DaliDesigner/Document/FloorplanLoader";
-import { downloadBlob } from "@/application/downloadBlob";
+import { downloadBlob } from "@/Application/downloadBlob";
 
 const DEVICE_COLOR: Record<string, string> = {
   Ballast: "#FACC15",
@@ -95,7 +95,6 @@ function getBounds(el: any): Point[] {
   return pts;
 }
 
-// Mirrors CanvasRenderer's element classification.
 function classifyElement(el: any): "room" | "wall" | "door" | "window" | "raw" | "fixture" | "other" {
   if (!el) return "other";
   
@@ -160,7 +159,6 @@ export const ExportService = {
 
     const validElements: Array<{ el: any, kind: string }> = [];
 
-    // ── 1. Classify and collect bounds ──────────────────────────────
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const includePt = (p: Point) => {
       if (p.x < minX) minX = p.x;
@@ -191,7 +189,6 @@ export const ExportService = {
     const width  = Math.max(1, maxX - minX);
     const height = Math.max(1, maxY - minY);
 
-    // ── 2. Output pixel dimensions ──────────────────────────────────
     const aspect = width / height;
     const TARGET_LONG_EDGE = 1800;
     const outW = aspect >= 1 ? TARGET_LONG_EDGE : Math.round(TARGET_LONG_EDGE * aspect);
@@ -200,7 +197,6 @@ export const ExportService = {
     const worldPerPx = width / outW;
     const px = (n: number) => n * worldPerPx;
 
-    // Direct Y projection without SVG transforms
     const projectY = (y: number) => maxY - y;
     const projX = (x: number) => x - minX;
 
@@ -214,9 +210,6 @@ export const ExportService = {
     );
     out.push(`  <rect width="${width}" height="${height}" fill="#0B0F19"/>`);
 
-    // ── 3. Floorplan ────────────────────────────────────────────────
-    
-    // 3a. Raw Geometry (drawn first, underneath everything, brighter and slightly thicker)
     out.push('    <g id="rawgeometry" fill="none" stroke="#94A3B8" stroke-linejoin="round" stroke-linecap="round">');
     for (const { el, kind } of validElements) {
       if (kind !== "raw") continue;
@@ -227,7 +220,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // 3b. Rooms
     out.push('    <g id="rooms">');
     for (const { el, kind } of validElements) {
       if (kind !== "room") continue;
@@ -254,7 +246,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // 3c. Walls, Doors, Windows — Drawn from primitives
     out.push('    <g id="structures" fill="none" stroke-linejoin="round" stroke-linecap="round">');
     for (const { el, kind } of validElements) {
       if (kind === "room" || kind === "raw") continue;
@@ -310,7 +301,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // ── 4. Topology edges ───────────────────────────────────────────
     const byId = new Map<string, DaliDevice>();
     for (const d of devices) byId.set(d.id, d);
 
@@ -328,7 +318,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // ── 5. Group rings ──────────────────────────────────────────────
     const deviceGroups = new Map<string, Group[]>();
     for (const d of devices) {
       const gs = (d.groupIds ?? [])
@@ -353,7 +342,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // ── 6. Devices ──────────────────────────────────────────────────
     out.push('    <g id="devices">');
     for (const { device, pt } of positioned) {
       const color = deviceColor(device);
@@ -390,7 +378,6 @@ export const ExportService = {
     }
     out.push('    </g>');
 
-    // ── 7. Power supplies ───────────────────────────────────────────
     if (lines.length > 0 && (topology.powerSupplies ?? []).length > 0) {
       out.push('    <g id="power-supplies">');
       for (const ps of topology.powerSupplies ?? []) {

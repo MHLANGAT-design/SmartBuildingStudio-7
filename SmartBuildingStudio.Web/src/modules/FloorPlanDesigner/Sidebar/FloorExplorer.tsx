@@ -1,5 +1,4 @@
-// src/modules/ProjectExplorer/Components/FloorExplorer.tsx
-// FINAL – strict filtering and dedup
+// src/modules/FloorPlanDesigner/Sidebar/FloorExplorer.tsx
 
 import React, { useMemo } from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
@@ -20,7 +19,7 @@ export const FloorExplorer: React.FC<FloorExplorerProps> = ({ onClose }) => {
     if (!selectedNodeId) return null;
     const findNode = (nodes: any[], id: string): any => {
       if (!nodes || !Array.isArray(nodes)) return null;
-      return nodes.find(n => n && String(n.id) === String(id)) || null;
+      return nodes.find((n: any) => n && String(n.id) === String(id)) || null;
     };
     return findNode(flatNodesArray, selectedNodeId);
   }, [flatNodesArray, selectedNodeId]);
@@ -30,7 +29,7 @@ export const FloorExplorer: React.FC<FloorExplorerProps> = ({ onClose }) => {
     let currentNode = currentContext;
     
     if (!currentNode && selectedNodeId) {
-      currentNode = flatNodesArray.find(n => String(n.id) === String(selectedNodeId));
+      currentNode = flatNodesArray.find((n: any) => String(n.id) === String(selectedNodeId));
     }
 
     if (currentNode) {
@@ -42,14 +41,14 @@ export const FloorExplorer: React.FC<FloorExplorerProps> = ({ onClose }) => {
         }
         const parentId = node.parentId;
         if (!parentId) break;
-        node = flatNodesArray.find(n => String(n.id) === String(parentId));
+        node = flatNodesArray.find((n: any) => String(n.id) === String(parentId));
       }
     }
 
     if (!buildingNode) {
       const buildingId = activeDocument?.buildingId;
       if (buildingId) {
-        buildingNode = flatNodesArray.find(n => String(n.id) === String(buildingId));
+        buildingNode = flatNodesArray.find((n: any) => String(n.id) === String(buildingId));
       }
     }
 
@@ -57,32 +56,25 @@ export const FloorExplorer: React.FC<FloorExplorerProps> = ({ onClose }) => {
       return "1 Level Profile Registered";
     }
 
-    // Strict filter: only nodes with type Floor and not misclassified
-    const floorNodes = flatNodesArray.filter(n => 
+    const floorNodes = flatNodesArray.filter((n: any) => 
       n && 
       String(n.parentId) === String(buildingNode.id) && 
       (n.type === 'Floor' || n.nodeType === 'Floor') &&
-      // Exclude nodes that are clearly not floors (by name or if they have children of documents)
       !n.name?.toLowerCase().includes('document') &&
       !n.name?.toLowerCase().includes('drawing')
     );
 
-    // Deduplicate by id and name
-    const uniqueIds = new Set(floorNodes.map(n => String(n.id)));
-    const uniqueNames = new Set(floorNodes.map(n => n.name?.toLowerCase()));
+    const uniqueIds = new Set(floorNodes.map((n: any) => String(n.id)));
+    const uniqueNames = new Set(floorNodes.map((n: any) => n.name?.toLowerCase()));
     let levelCount = Math.max(1, uniqueIds.size);
-    // If there are multiple ids with same name, reduce to unique names
     if (uniqueNames.size < uniqueIds.size && uniqueNames.size > 0) {
       levelCount = uniqueNames.size;
     }
 
-    // If still no floors, but current node is a floor, count it
     if (levelCount === 1 && currentNode && (currentNode.type === 'Floor' || currentNode.nodeType === 'Floor')) {
-      // Check if it's already counted
-      if (!floorNodes.some(n => String(n.id) === String(currentNode.id))) {
-        levelCount = 2; // or 1 if only one exists? Actually, we count it as one extra.
-        // Better: just count all floors including the current node if it's a floor
-        const allFloorIds = new Set(floorNodes.map(n => String(n.id)));
+      if (!floorNodes.some((n: any) => String(n.id) === String(currentNode.id))) {
+        levelCount = 2;
+        const allFloorIds = new Set(floorNodes.map((n: any) => String(n.id)));
         allFloorIds.add(String(currentNode.id));
         levelCount = allFloorIds.size;
       }

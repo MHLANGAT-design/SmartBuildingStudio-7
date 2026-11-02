@@ -17,7 +17,7 @@
  * * ============================================================================
  */
 
-import type { IDocumentCommand } from "@/Modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
+import type { IDocumentCommand } from "@/modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
 
 export class CompositeCommand implements IDocumentCommand {
     private readonly commands: IDocumentCommand[] = [];

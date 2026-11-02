@@ -5,7 +5,7 @@ import {
     distance,
     midpoint,
     angle
-} from "@/modules/FloorPlanDesigner/models/base/Geometry";
+} from "@/modules/FloorPlanDesigner/Models/Base/Geometry";
 
 export interface WallGeometry {
     start: Point2D;

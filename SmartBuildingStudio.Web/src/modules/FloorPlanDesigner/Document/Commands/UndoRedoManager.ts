@@ -1,11 +1,11 @@
-import { CompositeCommand } from "@/Modules/FloorPlanDesigner/Document/Commands/CompositeCommand";
-import { CommandHistory } from "@/Modules/FloorPlanDesigner/Document/Commands/CommandHistory";
-import type { IDocumentCommand } from "@/Modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
-import { DrawingDocumentEvents } from "@/Modules/FloorPlanDesigner/Document/Events/DrawingDocumentEvents";
+import { CompositeCommand } from "@/modules/FloorPlanDesigner/Document/Commands/CompositeCommand";
+import { CommandHistory } from "@/modules/FloorPlanDesigner/Document/Commands/CommandHistory";
+import type { IDocumentCommand } from "@/modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
+import { DrawingDocumentEvents } from "@/modules/FloorPlanDesigner/Document/Events/DrawingDocumentEvents";
 import {
     DocumentLifecycleEvent,
     DocumentLifecycleOperation
-} from "@/Modules/FloorPlanDesigner/Document/Events/DocumentLifecycleEvent";
+} from "@/modules/FloorPlanDesigner/Document/Events/DocumentLifecycleEvent";
 
 export class UndoRedoManager {
     private readonly undoStack = new CommandHistory();

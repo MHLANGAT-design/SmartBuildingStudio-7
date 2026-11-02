@@ -8,7 +8,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAppSelector, useAppDispatch } from "@/Application/ConfigureStore";
 import { store } from "@/Application/ConfigureStore";
 import { markDirty, setSelection, setDocument } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
-import { useFloorPlanLockState } from "@/modules/FloorPlanDesigner/hooks/useFloorPlanLockState";
+import { useFloorPlanLockState } from "@/modules/FloorPlanDesigner/Hooks/useFloorPlanLockState";
 
 interface RoomInspectorProps {
   selection: any;

@@ -1,7 +1,9 @@
+// src/modules/FloorPlanDesigner/Tools/PanTool.ts
+
 import { BaseTool } from "@/modules/FloorPlanDesigner/Tools/Base/BaseTool";
 import { ToolPointerEvent, MouseButton } from "@/modules/FloorPlanDesigner/Tools/Base/ITool";
 import { store } from "@/Application/ConfigureStore";
-import { SetViewportOffset } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
+import { setOffset } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 
 export class PanTool extends BaseTool {
   public static readonly ID = "pan";
@@ -33,7 +35,6 @@ export class PanTool extends BaseTool {
       this.startScreenY = event.screenY;
 
       if (activeViewport) {
-        // Read current lens center coordinates cleanly
         const currentOffset = typeof activeViewport.getOffset === "function" ? activeViewport.getOffset() : activeViewport;
         this.startOffsetX = currentOffset.x ?? activeViewport.offsetX ?? 0;
         this.startOffsetY = currentOffset.y ?? activeViewport.offsetY ?? 0;
@@ -54,16 +55,11 @@ export class PanTool extends BaseTool {
     const activeViewport = (this as any).viewport || (this as any).context?.viewport || (this as any).context?.getViewport?.();
     if (!activeViewport) return;
 
-    // Calculate mouse screen movement
     const deltaX = event.screenX - this.startScreenX;
     const deltaY = event.screenY - this.startScreenY;
 
-    // Extract current magnification properties safely
     const activeZoom = typeof activeViewport.getZoom === "function" ? activeViewport.getZoom() : activeViewport.zoom || 1.0;
 
-    // 🚀 CRITICAL FIXED WORLD TRANSFORMATION MODEL
-    // Screen movement pixels must be divided by the active zoom factor 
-    // to update your world-space camera center locations precisely.
     const targetX = this.startOffsetX - (deltaX / activeZoom);
     const targetY = this.startOffsetY - (deltaY / activeZoom);
 
@@ -74,8 +70,8 @@ export class PanTool extends BaseTool {
       activeViewport.offsetY = targetY;
     }
 
-    if (store && typeof store.dispatch === "function" && typeof setViewportOffset === "function") {
-      store.dispatch(setViewportOffset({ x: targetX, y: targetY }));
+    if (store && typeof store.dispatch === "function" && typeof setOffset === "function") {
+      store.dispatch(setOffset({ x: targetX, y: targetY }));
     }
 
     this.requestRender();

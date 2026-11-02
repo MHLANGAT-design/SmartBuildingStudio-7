@@ -10,7 +10,7 @@
  * ============================================================================
  */
 
-import type { IDocumentCommand } from "@/Modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
+import type { IDocumentCommand } from "@/modules/FloorPlanDesigner/Document/Commands/IDocumentCommand";
 
 export class CommandHistory {
     private readonly commands: IDocumentCommand[] = [];
