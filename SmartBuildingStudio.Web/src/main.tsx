@@ -17,6 +17,7 @@ import { FixturePlacementStudioPage } from '@/modules/FixturePlacementStudio';
 import { DaliDesignerPage } from '@/modules/DaliDesigner';
 import { DaliProgrammingStudioPage } from '@/modules/DaliProgrammingStudio';
 import { EmergencyLightingPage } from '@/modules/EmergencyLighting';
+import { CommissioningPage } from '@/modules/Commissioning'; // NEW
 import { ManufacturerAdminPage } from '@/modules/Admin/ManufacturerAdminPage';
 
 import { clearDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
@@ -162,6 +163,9 @@ const App = () => {
             element={<DaliProgrammingRoute />}
           />
 
+          {/* NEW: Commissioning module route */}
+          <Route path="/commissioning" element={<CommissioningPage />} />
+
           <Route path="/admin/manufacturers" element={<ManufacturerAdminPage />} />
 
           <Route path="/designer/floorplan" element={<Navigate to="/designer?mode=floorplans" replace />} />
@@ -171,6 +175,7 @@ const App = () => {
           <Route path="/designer/dali" element={<Navigate to="/designer?mode=dali" replace />} />
           <Route path="/designer/programming" element={<Navigate to="/designer?mode=programming" replace />} />
           <Route path="/designer/emergency" element={<Navigate to="/designer?mode=emergency" replace />} />
+          <Route path="/designer/commissioning" element={<Navigate to="/commissioning" replace />} />
 
           <Route
             path="*"
