@@ -7,10 +7,10 @@ import { FaultInspector } from '@/modules/Commissioning/Inspector/FaultInspector
 import { SceneInspector } from '@/modules/Commissioning/Inspector/SceneInspector';
 import { TestResultInspector } from '@/modules/Commissioning/Inspector/TestResultInspector';
 
-export type InspectorSelection = 
+export type InspectorSelection =
   | { kind: 'device'; id: string }
   | { kind: 'network'; id: string }
-  | { kind: 'fault'; id: string }
+  | { kind: 'fault'; data: any }
   | { kind: 'sceneTest'; data: any }
   | { kind: 'testResult'; data: any }
   | null;
@@ -31,8 +31,12 @@ export const CommissioningInspector: React.FC<Props> = ({ selection }) => {
         height: '100%',
       }}
     >
-      {!selection && <div style={{ color: '#64748B', fontSize: 11, textAlign: 'center', padding: 16 }}>Select an item to inspect</div>}
-      
+      {!selection && (
+        <div style={{ color: '#64748B', fontSize: 11, textAlign: 'center', padding: 16 }}>
+          Select an item to inspect
+        </div>
+      )}
+
       {selection?.kind === 'device' && <DeviceInspector deviceId={selection.id} />}
       {selection?.kind === 'network' && <NetworkInspector lineId={selection.id} />}
       {selection?.kind === 'fault' && <FaultInspector fault={selection.data} />}

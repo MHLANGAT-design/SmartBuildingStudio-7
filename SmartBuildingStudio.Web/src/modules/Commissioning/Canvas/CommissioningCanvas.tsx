@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useAppSelector } from '@/Application/ConfigureStore';
-import { selectDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSelectors'; // FIXED
+import { selectDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSelectors';
 import { CanvasRenderer } from '@/modules/FloorPlanDesigner/Components/Canvas/CanvasRenderer';
 
 import { DeviceStateLayer } from '@/modules/Commissioning/Canvas/DeviceStateLayer';
@@ -15,7 +15,7 @@ import { LiveFeedbackLayer } from '@/modules/Commissioning/Canvas/LiveFeedbackLa
 
 export const CommissioningCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const floorplan = useAppSelector(selectDocument); // FIXED
+  const floorplan = useAppSelector(selectDocument);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -52,19 +52,19 @@ export const CommissioningCanvas: React.FC = () => {
       ctx,
       canvas.width,
       canvas.height,
-      floorplan,
+      floorplan as any, // cast: DeserializedDrawingDocument is structurally compatible with ArchitecturalPlan for the renderer's needs
       1,
       { x: 0, y: 0 },
-      { 
-        showDimensions: false, 
-        layers: { 
-          walls: true, 
-          doors: true, 
-          windows: true, 
-          rooms: true, 
-          rawgeometry: true, 
-          fixtures: true 
-        } 
+      {
+        showDimensions: false,
+        layers: {
+          walls: true,
+          doors: true,
+          windows: true,
+          rooms: true,
+          rawgeometry: true,
+          fixtures: true,
+        },
       }
     );
   }, [floorplan, dimensions]);
@@ -77,7 +77,7 @@ export const CommissioningCanvas: React.FC = () => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#0a0a0a', overflow: 'hidden' }}>
       <canvas ref={canvasRef} style={{ display: 'block' }} />
-      
+
       {dimensions.width > 0 && (
         <svg
           width={dimensions.width}

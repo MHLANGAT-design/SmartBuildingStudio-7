@@ -59,7 +59,6 @@ export const runFullCommissioningWorkflow = createAsyncThunk<
     dispatch(setTesting(true));
 
     try {
-      // Delegates to the master workflow
       const updatedSession = await CommissioningWorkflow.runFullSequence(
         session,
         gatewayId,
@@ -102,6 +101,7 @@ export const generateCommissioningReport = createAsyncThunk<
     try {
       const report = await CommissioningApi.generateReport(session.sessionId);
       dispatch(setFinalReport(report));
+      return undefined; // explicit — satisfies noImplicitReturns alongside the rejectWithValue path
     } catch (e: any) {
       dispatch(setError(e.message));
       return rejectWithValue(e.message);
