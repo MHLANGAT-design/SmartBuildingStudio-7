@@ -3,24 +3,31 @@
 import type { CommissioningSession } from '@/modules/Commissioning/models/CommissioningSession';
 import type { CommissioningReport } from '@/modules/Commissioning/models/CommissioningReport';
 import type { TestResult } from '@/modules/Commissioning/models/TestResult';
-import type { Fault } from '@/modules/Commissioning/models/Fault';
+import type { CommissioningFloorplanRenderModel } from '@/modules/Commissioning/Document/CommissioningFloorplanLoader';
+
+export type CommissioningInspectorSelection =
+  | { kind: 'device'; id: string }
+  | { kind: 'network'; id: string }
+  | { kind: 'fault'; data: any }
+  | { kind: 'sceneTest'; data: any }
+  | { kind: 'testResult'; data: any }
+  | null;
 
 export interface CommissioningState {
-  // The active session being worked on
   activeSession: CommissioningSession | null;
-  
-  // Results from the most recent tests
   recentTestResults: TestResult[];
-  
-  // The generated report (once complete)
   finalReport: CommissioningReport | null;
-  
-  // UI state
   isDiscovering: boolean;
   isAddressing: boolean;
   isTesting: boolean;
   isGeneratingReport: boolean;
-  
-  // Errors
   error: string | null;
+  floorplanId: string | null;
+  floorplan: CommissioningFloorplanRenderModel | null;
+  floorplanLoading: boolean;
+  floorplanError: string | null;
+  viewport: { offsetX: number; offsetY: number; zoom: number };
+  layerVisibility: Record<string, boolean>;
+  
+  inspectorSelection: CommissioningInspectorSelection;
 }

@@ -1,47 +1,43 @@
 // src/modules/Commissioning/Workflows/completionWorkflow.ts
 
 import type { CommissioningSession } from '@/modules/Commissioning/models/CommissioningSession';
-import type { CommissioningReport } from '@/modules/Commissioning/models/CommissioningReport';
 import { CommissioningWorkflowEngine } from '@/modules/Commissioning/Engine/CommissioningWorkflowEngine';
 
 export class CompletionWorkflow {
   /**
-   * Validates that the session is ready for handover, then generates the report.
+   * Validates the session, advances status to a terminal state, returns the session.
+   *
+   * FIX: previously returned `{ success, report?, error? }`, which
+   * commissioningWorkflow reassigned to `currentSession` and dispatched
+   * through `setSession` — producing an activeSession with no sessionId,
+   * no status, and empty collections. Now returns a CommissioningSession.
    */
   public static async execute(
-    session: CommissioningSession
-  ): Promise<{ success: boolean; report?: CommissioningReport; error?: string }> {
+    session: CommissioningSession,
+  ): Promise<CommissioningSession> {
     // 1. Check if we are allowed to complete
     const validation = CommissioningWorkflowEngine.canAdvanceSession(session);
     if (!validation.allowed) {
-      return { success: false, error: validation.reason };
+      return { ...session, status: 'FAILED' };
     }
 
-    // 2. Determine overall status
-    const criticalFaults = session.activeFaults.filter(f => !f.isResolved && f.severity === 'CRITICAL').length;
-    
-    let overallStatus: CommissioningReport['overallStatus'] = 'READY_FOR_HANDOVER';
-    if (criticalFaults > 0) {
-      overallStatus = 'CRITICAL_FAILURE';
-    } else if (session.activeFaults.some(f => !f.isResolved)) {
-      overallStatus = 'REQUIRES_ATTENTION';
-    }
+    // 2. Determine terminal status.
+    //    NOTE: SessionStatus is 'IDLE' | 'DISCOVERING' | 'ADDRESSING' |
+    //    'TESTING' | 'COMPLETED' | 'FAILED'. There is no 'READY_FOR_HANDOVER'
+    //    state — the "ready for handover" signal is the absence of critical
+    //    faults alongside a 'COMPLETED' status. We still compute overallStatus
+    //    for the report and log it, but the session status itself only takes
+    //    terminal values from the union.
+    const unresolvedFaults = (session.activeFaults ?? []).filter((f) => !f.isResolved);
+    const criticalFaults = unresolvedFaults.filter((f) => f.severity === 'CRITICAL');
 
-    // 3. Generate the report structure
-    const report: CommissioningReport = {
-      reportId: `report-${Date.now()}`,
-      sessionId: session.sessionId,
-      projectId: session.projectId,
-      generatedAt: new Date().toISOString(),
-      totalDevices: Object.keys(session.deviceStates).length,
-      testedDevices: Object.keys(session.deviceStates).length, // Assuming all are tested by now
-      faults: session.activeFaults,
-      testResults: [], // Would be passed in or fetched from state
-      overallStatus,
+    const terminalStatus: CommissioningSession['status'] =
+      criticalFaults.length > 0 ? 'FAILED' : 'COMPLETED';
+
+    return {
+      ...session,
+      status: terminalStatus,
+      completedAt: new Date().toISOString(),
     };
-
-    // In a full implementation, we would POST this to the backend here.
-    
-    return { success: true, report };
   }
 }

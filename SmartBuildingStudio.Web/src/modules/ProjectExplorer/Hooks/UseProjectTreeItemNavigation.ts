@@ -7,7 +7,7 @@ import { ExplorerNode } from "../Models/ExplorerNode";
 import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 import { UseProjectTreeItemContext } from "./UseProjectTreeItemContext";
 
-export type DesignMode = "floorplans" | "import" | "fixtures" | "dali" | "programming";
+export type DesignMode = "floorplans" | "import" | "fixtures" | "dali" | "programming" | "commissioning";
 
 export function UseProjectTreeItemNavigation() {
   const dispatch = useAppDispatch();
@@ -60,33 +60,31 @@ export function UseProjectTreeItemNavigation() {
         level: resolvedFloorLevel,
       };
 
-      // ── DALI Designer — dedicated route with path params. ─────────
+      // ── DALI Designer ─────────
       if (mode === "dali") {
         const projectId = context.projectId;
-        if (!projectId) {
-          console.warn(
-            "[Navigation] DALI Designer requires a projectId in the context; refusing to navigate."
-          );
-          return;
-        }
+        if (!projectId) return;
         navigate(`/projects/${projectId}/floorplans/${documentId}/dali`);
         return;
       }
 
-      // ── DALI Programming — dedicated route with path params. ──────
+      // ── DALI Programming ──────
       if (mode === "programming") {
         const projectId = context.projectId;
-        if (!projectId) {
-          console.warn(
-            "[Navigation] DALI Programming requires a projectId in the context; refusing to navigate."
-          );
-          return;
-        }
+        if (!projectId) return;
         navigate(`/projects/${projectId}/floorplans/${documentId}/programming`);
         return;
       }
 
-      // ── /designer?mode=… route for FPD, FPS, Import. ──────────────
+      // ── Commissioning ─────────
+      if (mode === "commissioning") {
+        const projectId = context.projectId;
+        if (!projectId) return;
+        navigate(`/projects/${projectId}/floorplans/${documentId}/commissioning`);
+        return;
+      }
+
+      // ── FPD, FPS, Import ──────────────
       const urlMode =
         mode === "import" ? "floorplans" :
         mode === "fixtures" ? "fixtures" :
@@ -121,25 +119,26 @@ export function UseProjectTreeItemNavigation() {
       const docName =
         targetNode.name ?? (targetNode as any).Name ?? "Untitled Document";
 
-      // intent=fixtures → dashboard quick launch → straight to FPS.
       if (intent === "fixtures") {
         executeMode(String(documentId), context, docName, "fixtures");
         return;
       }
 
-      // intent=dali → dashboard quick launch → straight to DALI.
       if (intent === "dali") {
         executeMode(String(documentId), context, docName, "dali");
         return;
       }
 
-      // intent=programming → dashboard quick launch → straight to programming.
       if (intent === "programming") {
         executeMode(String(documentId), context, docName, "programming");
         return;
       }
 
-      // Default: select the node.
+      if (intent === "commissioning") {
+        executeMode(String(documentId), context, docName, "commissioning");
+        return;
+      }
+
       dispatch({
         type: "projectExplorer/selectNode",
         payload: String(documentId),

@@ -42,23 +42,67 @@ export const API_ROUTES = {
   // DALI DESIGNER SERVICE
   // ============================================================
   DALI_DESIGNER_SERVICE: {
-    /** Fixtures placed on a floorplan document — the source data for DaliDesigner. */
     PLACED_FIXTURES: (projectId: string, floorplanId: string) =>
       `/api/v1/project-explorer/projects/${projectId}/floorplans/${floorplanId}/fixtures`,
-
-    /** DALI networks collection for a project. POST creates a new one. */
     NETWORKS: (projectId: string) =>
       `/api/v1/project-explorer/projects/${projectId}/dali-networks`,
-
-    /** A single DALI network. GET / PUT / DELETE. */
     NETWORK: (projectId: string, networkId: string) =>
       `/api/v1/project-explorer/projects/${projectId}/dali-networks/${networkId}`,
-
-    /**
-     * List every DALI network attached to a floorplan document.
-     */
     NETWORKS_FOR_FLOORPLAN: (projectId: string, floorplanId: string) =>
       `/api/v1/project-explorer/projects/${projectId}/floorplans/${floorplanId}/dali-networks`,
+  },
+
+  // ============================================================
+  // COMMISSIONING SERVICE
+  // ============================================================
+  COMMISSIONING_SERVICE: {
+    /** POST — initialize a new field session for a project/floor. */
+    START: `/api/v1/commissioning/start`,
+
+    /** POST — save a session state snapshot (device states, faults, etc.). */
+    SESSION: `/api/v1/commissioning/session`,
+
+    /** POST — generate and persist the handover report. */
+    REPORT: `/api/v1/commissioning/report`,
+
+    /** POST — trigger a physical device scan on a gateway/line. */
+    DEVICES_DISCOVER: (gatewayId: string, lineId: string) =>
+      `/api/v1/commissioning/devices/discover?gatewayId=${gatewayId}&lineId=${lineId}`,
+
+    /** GET — current physical state of a device. */
+    DEVICE_STATE: (deviceId: string) =>
+      `/api/v1/commissioning/devices/${deviceId}/state`,
+
+    /** POST — send a test signal to a device and await verification. */
+    TEST_SIGNAL: (deviceId: string) =>
+      `/api/v1/commissioning/tests/signal/${deviceId}`,
+
+    /** POST — run a full network sweep on a line. */
+    TEST_NETWORK: `/api/v1/commissioning/tests/network`,
+
+    /** GET — topology and health of a network line. */
+    NETWORK_STATE: (gatewayId: string, lineId: string) =>
+      `/api/v1/commissioning/networks/${gatewayId}/lines/${lineId}`,
+
+    /** POST — reset a physical DALI bus line. */
+    NETWORK_RESET: (gatewayId: string, lineId: string) =>
+      `/api/v1/commissioning/networks/${gatewayId}/lines/${lineId}/reset`,
+
+    /** GET — active (unresolved) faults for a session. */
+    SESSION_FAULTS: (sessionId: string) =>
+      `/api/v1/commissioning/sessions/${sessionId}/faults?active=true`,
+
+    /** POST — mark a fault as resolved. */
+    RESOLVE_FAULT: (faultId: string) =>
+      `/api/v1/commissioning/faults/${faultId}/resolve`,
+
+    /** POST — execute a scene and read back device levels. */
+    TEST_SCENE: (sceneId: string) =>
+      `/api/v1/commissioning/scenes/${sceneId}/test`,
+
+    /** GET — recent signal logs for a device. */
+    SIGNAL_LOGS: (deviceId: string) =>
+      `/api/v1/commissioning/devices/${deviceId}/signals`,
   },
 
   // ============================================================
@@ -66,18 +110,14 @@ export const API_ROUTES = {
   // ============================================================
   PRODUCT_CATALOG_SERVICE: {
     PRODUCTS: {
-      /** Base URL. Append `?manufacturer=&family=&type=&search=` to filter. */
       LIST: `/api/v1/product-catalog/products`,
       GET: (productId: string) =>
         `/api/v1/product-catalog/products/${productId}`,
       CREATE: `/api/v1/product-catalog/products`,
       DELETE: (productId: string) =>
         `/api/v1/product-catalog/products/${productId}`,
-      /** Distinct manufacturer names. */
       MANUFACTURERS: `/api/v1/product-catalog/products/manufacturers`,
-      /** Aggregate: manufacturer name + product count. */
       MANUFACTURER_STATS: `/api/v1/product-catalog/products/manufacturer-stats`,
-      /** Distinct family names. */
       FAMILIES: `/api/v1/product-catalog/products/families`,
     },
     PHOTOMETRIC_FILES: {

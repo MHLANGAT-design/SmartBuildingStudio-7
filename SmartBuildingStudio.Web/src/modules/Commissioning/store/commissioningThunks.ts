@@ -4,7 +4,6 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 import type { RootState } from '@/Application/ConfigureStore';
 import type { CommissioningSession } from '@/modules/Commissioning/models/CommissioningSession';
 import { CommissioningApi } from '@/modules/Commissioning/services/CommissioningApi';
-import { CommissioningEngine } from '@/modules/Commissioning/Engine/CommissioningEngine';
 import { CommissioningWorkflow } from '@/modules/Commissioning/Workflows/commissioningWorkflow';
 import {
   setSession,
@@ -14,11 +13,9 @@ import {
   setError,
   setGeneratingReport,
   setFinalReport,
+  setTestResults,
 } from '@/modules/Commissioning/store/commissioningSlice';
 
-/**
- * Starts a new commissioning session.
- */
 export const startCommissioningSession = createAsyncThunk<
   CommissioningSession,
   { projectId: string; floorId: string },
@@ -34,12 +31,9 @@ export const startCommissioningSession = createAsyncThunk<
       dispatch(setError(e.message));
       return rejectWithValue(e.message);
     }
-  }
+  },
 );
 
-/**
- * Runs the full discovery -> addressing -> testing sequence.
- */
 export const runFullCommissioningWorkflow = createAsyncThunk<
   CommissioningSession,
   { gatewayId: string; lineId: string; sceneIds: string[] },
@@ -63,10 +57,17 @@ export const runFullCommissioningWorkflow = createAsyncThunk<
         session,
         gatewayId,
         lineId,
-        sceneIds
+        sceneIds,
       );
 
       dispatch(setSession(updatedSession));
+
+      // FIX: mirror the session's test results into recentTestResults so the
+      // ValidationGroup gating (testResultCount > 0) un-greys Generate Report.
+      if (updatedSession.testResults?.length) {
+        dispatch(setTestResults(updatedSession.testResults));
+      }
+
       return updatedSession;
     } catch (e: any) {
       dispatch(setError(e.message));
@@ -76,12 +77,9 @@ export const runFullCommissioningWorkflow = createAsyncThunk<
       dispatch(setAddressing(false));
       dispatch(setTesting(false));
     }
-  }
+  },
 );
 
-/**
- * Generates the final report.
- */
 export const generateCommissioningReport = createAsyncThunk<
   void,
   void,
@@ -101,12 +99,12 @@ export const generateCommissioningReport = createAsyncThunk<
     try {
       const report = await CommissioningApi.generateReport(session.sessionId);
       dispatch(setFinalReport(report));
-      return undefined; // explicit — satisfies noImplicitReturns alongside the rejectWithValue path
+      return undefined;
     } catch (e: any) {
       dispatch(setError(e.message));
       return rejectWithValue(e.message);
     } finally {
       dispatch(setGeneratingReport(false));
     }
-  }
+  },
 );

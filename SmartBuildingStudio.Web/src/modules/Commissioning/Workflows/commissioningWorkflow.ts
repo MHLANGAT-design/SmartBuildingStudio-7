@@ -15,9 +15,8 @@ export class CommissioningWorkflow {
     session: CommissioningSession,
     gatewayId: string,
     lineId: string,
-    sceneIds: string[]
+    sceneIds: string[],
   ): Promise<CommissioningSession> {
-    
     // Step 1: Discovery
     let currentSession = await DeviceDiscoveryFlow.execute(session, gatewayId, lineId);
     if (currentSession.status === 'FAILED') return currentSession;
@@ -30,6 +29,10 @@ export class CommissioningWorkflow {
 
     // Step 4: Scene Testing
     currentSession = await SceneValidationFlow.execute(currentSession, sceneIds);
+
+    // Step 5: Completion — advances status from TESTING to a terminal state
+    // (COMPLETED / READY_FOR_HANDOVER / FAILED) and computes handover readiness.
+    currentSession = await CompletionWorkflow.execute(currentSession);
 
     return currentSession;
   }

@@ -7,9 +7,14 @@ interface Props {
   onClick: () => void;
 }
 
+// FIX: original gate was `status !== 'TESTING' && status !== 'DISCOVERING'`,
+// which left Pause disabled during 'ADDRESSING' — the phase most likely to
+// need pause. Include 'ADDRESSING' explicitly.
+const PAUSABLE_STATUSES = new Set(['DISCOVERING', 'ADDRESSING', 'TESTING']);
+
 export const PauseCommissioningButton: React.FC<Props> = ({ onClick }) => {
   const { status } = useCommissioning();
-  const disabled = status !== 'TESTING' && status !== 'DISCOVERING';
+  const disabled = !PAUSABLE_STATUSES.has(status);
 
   return (
     <button

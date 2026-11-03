@@ -15,6 +15,11 @@ export const StartCommissioningButton: React.FC<Props> = ({ onClick }) => {
     <button
       onClick={onClick}
       disabled={disabled}
+      title={
+        disabled
+          ? 'A session is already active. Stop or reset it to start a new one.'
+          : 'Start a new commissioning session.'
+      }
       style={{
         padding: '4px 10px',
         background: disabled ? '#1F2937' : '#1D4ED8',
@@ -26,7 +31,7 @@ export const StartCommissioningButton: React.FC<Props> = ({ onClick }) => {
         cursor: disabled ? 'not-allowed' : 'pointer',
       }}
     >
-      Start Session
+      {disabled ? 'Session Active' : 'Start Session'}
     </button>
   );
 };

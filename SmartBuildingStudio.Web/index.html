@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Building Studio</title>
+    <!-- FIX: stops the browser from requesting /favicon.ico (which 404s).
+         `data:,` is a valid empty data URI — no icon is rendered, but the
+         request is satisfied in-page so the console stays clean. Drop a real
+         .ico into /public and swap the href to "/favicon.ico" when you have one. -->
+    <link rel="icon" href="data:," />
   </head>
   <body>
     <div id="root"></div>

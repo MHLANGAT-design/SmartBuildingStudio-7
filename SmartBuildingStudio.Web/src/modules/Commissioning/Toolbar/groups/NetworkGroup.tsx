@@ -1,32 +1,28 @@
 // src/modules/Commissioning/Toolbar/groups/NetworkGroup.tsx
 
 import React from 'react';
-import { useNetworkTesting } from '@/modules/Commissioning/hooks/useNetworkTesting';
+import { TestNetworkButton } from '@/modules/Commissioning/Toolbar/buttons/TestNetworkButton';
+import { TestAllDevicesButton } from '@/modules/Commissioning/Toolbar/buttons/TestAllDevicesButton';
+import { DetectFaultsButton } from '@/modules/Commissioning/Toolbar/buttons/DetectFaultsButton';
 
 interface Props {
   onOpenNetworkTestDialog: () => void;
+  onOpenFaultsPanel?: () => void;
 }
 
-export const NetworkGroup: React.FC<Props> = ({ onOpenNetworkTestDialog }) => {
-  const { isTesting } = useNetworkTesting();
-
+export const NetworkGroup: React.FC<Props> = ({
+  onOpenNetworkTestDialog,
+  onOpenFaultsPanel,
+}) => {
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      <button
-        onClick={onOpenNetworkTestDialog}
-        disabled={isTesting}
-        style={{
-          padding: '4px 10px',
-          background: isTesting ? '#1F2937' : '#1E293B',
-          color: isTesting ? '#64748B' : '#E5E7EB',
-          border: '1px solid #334155',
-          borderRadius: 3,
-          fontSize: 10,
-          cursor: isTesting ? 'not-allowed' : 'pointer',
+      <TestNetworkButton onClick={onOpenNetworkTestDialog} />
+      <TestAllDevicesButton onClick={onOpenNetworkTestDialog} />
+      <DetectFaultsButton
+        onClick={() => {
+          if (onOpenFaultsPanel) onOpenFaultsPanel();
         }}
-      >
-        {isTesting ? 'Testing Network...' : 'Test Network'}
-      </button>
+      />
     </div>
   );
 };

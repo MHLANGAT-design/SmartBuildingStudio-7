@@ -17,7 +17,7 @@ import { FixturePlacementStudioPage } from '@/modules/FixturePlacementStudio';
 import { DaliDesignerPage } from '@/modules/DaliDesigner';
 import { DaliProgrammingStudioPage } from '@/modules/DaliProgrammingStudio';
 import { EmergencyLightingPage } from '@/modules/EmergencyLighting';
-import { CommissioningPage } from '@/modules/Commissioning'; // NEW
+import { CommissioningPage } from '@/modules/Commissioning';
 import { ManufacturerAdminPage } from '@/modules/Admin/ManufacturerAdminPage';
 
 import { clearDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
@@ -78,6 +78,15 @@ const DaliProgrammingRoute = () => {
   return <DaliProgrammingStudioPage />;
 };
 
+const CommissioningRoute = () => {
+  const { projectId, floorplanId } = useParams<{
+    projectId: string;
+    floorplanId: string;
+  }>();
+
+  return <CommissioningPage />;
+};
+
 const DesignerRoute = () => {
   const [searchParams] = useSearchParams();
   const rawMode = (searchParams.get('mode') || 'floorplans').toLowerCase();
@@ -124,11 +133,29 @@ const DesignerRoute = () => {
         );
       }
 
-      // Redirect to the canonical deep-link URL so useHydrateDaliDesign
-      // reads params from useParams (matching DaliDesignerPage's pattern).
       const target = networkId
         ? `/projects/${projectId}/floorplans/${floorplanId}/programming/${networkId}`
         : `/projects/${projectId}/floorplans/${floorplanId}/programming`;
+      return <Navigate to={target} replace />;
+    }
+    case 'commissioning': {
+      const projectId = searchParams.get('projectId') || undefined;
+      const floorplanId = searchParams.get('floorplanId') || undefined;
+
+      if (!projectId || !floorplanId) {
+        return (
+          <div style={{ padding: 20, color: '#FFF', fontFamily: 'monospace' }}>
+            <h1>Commissioning</h1>
+            <p>Missing required context.</p>
+            <p>
+              Provide <code>?projectId=…&amp;floorplanId=…</code> or open
+              the deep link from ProjectExplorer.
+            </p>
+          </div>
+        );
+      }
+
+      const target = `/projects/${projectId}/floorplans/${floorplanId}/commissioning`;
       return <Navigate to={target} replace />;
     }
     case 'emergency':
@@ -163,7 +190,12 @@ const App = () => {
             element={<DaliProgrammingRoute />}
           />
 
-          {/* NEW: Commissioning module route */}
+          <Route
+            path="/projects/:projectId/floorplans/:floorplanId/commissioning"
+            element={<CommissioningRoute />}
+          />
+
+          {/* Fallback for manual initialization (no context) */}
           <Route path="/commissioning" element={<CommissioningPage />} />
 
           <Route path="/admin/manufacturers" element={<ManufacturerAdminPage />} />
@@ -174,8 +206,8 @@ const App = () => {
           <Route path="/designer/fixtures" element={<Navigate to="/designer?mode=fixtures" replace />} />
           <Route path="/designer/dali" element={<Navigate to="/designer?mode=dali" replace />} />
           <Route path="/designer/programming" element={<Navigate to="/designer?mode=programming" replace />} />
+          <Route path="/designer/commissioning" element={<Navigate to="/designer?mode=commissioning" replace />} />
           <Route path="/designer/emergency" element={<Navigate to="/designer?mode=emergency" replace />} />
-          <Route path="/designer/commissioning" element={<Navigate to="/commissioning" replace />} />
 
           <Route
             path="*"
@@ -194,7 +226,15 @@ const App = () => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Provider store={store}>
-      <BrowserRouter>
+      {/* FIX: opt into the v7 future flags so React Router stops logging
+          the two deprecation warnings (v7_startTransition, v7_relativeSplatPath).
+          Both are behaviour-compatible with v6 and become the defaults in v7. */}
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <App />
       </BrowserRouter>
     </Provider>

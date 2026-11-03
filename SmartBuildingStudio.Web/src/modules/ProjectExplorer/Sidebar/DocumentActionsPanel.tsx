@@ -1,7 +1,8 @@
 // src/modules/ProjectExplorer/Sidebar/DocumentActionsPanel.tsx
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle, Cpu } from "lucide-react";
+import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle, Cpu, Wrench } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/Application/ConfigureStore";
 import {
   selectSelectedNode,
@@ -10,7 +11,7 @@ import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlan
 import { resetProgrammingState } from "@/modules/DaliProgrammingStudio/store/programmingSlice";
 import { resetDaliDocument } from "@/modules/DaliDesigner/store/daliSlice";
 
-type Mode = "floorplans" | "fixtures" | "dali" | "emergency" | "programming" | "import";
+type Mode = "floorplans" | "fixtures" | "dali" | "emergency" | "programming" | "commissioning" | "import";
 
 interface ActionTile {
   mode: Mode;
@@ -21,67 +22,22 @@ interface ActionTile {
 }
 
 const TILES: ActionTile[] = [
-  {
-    mode: "floorplans",
-    label: "Floor Plan Designer",
-    hint: "Edit walls, doors, windows, rooms",
-    icon: <Layers size={18} />,
-    accent: "#05FFC4",
-  },
-  {
-    mode: "fixtures",
-    label: "Fixture Placement Studio",
-    hint: "Place fixtures and compute illuminance",
-    icon: <Lightbulb size={18} />,
-    accent: "#F59E0B",
-  },
-  {
-    mode: "dali",
-    label: "DALI Designer",
-    hint: "Commission addresses, groups, scenes",
-    icon: <Zap size={18} />,
-    accent: "#8B5CF6",
-  },
-  {
-    mode: "programming",
-    label: "DALI Programming",
-    hint: "Compile and deploy the approved DALI design",
-    icon: <Cpu size={18} />,
-    accent: "#22C55E", // Green to distinguish from DALI Designer
-  },
-  {
-    mode: "emergency",
-    label: "Emergency Lighting",
-    hint: "Run compliance simulation and export safety reports",
-    icon: <AlertTriangle size={18} />,
-    accent: "#F43F5E",
-  },
-  {
-    mode: "import",
-    label: "Import Fresh DWG",
-    hint: "Flush state and load a fresh DWG",
-    icon: <FilePlus size={18} />,
-    accent: "#F59E0B",
-  },
+  { mode: "floorplans", label: "Floor Plan Designer", hint: "Edit walls, doors, windows, rooms", icon: <Layers size={18} />, accent: "#05FFC4" },
+  { mode: "fixtures", label: "Fixture Placement Studio", hint: "Place fixtures and compute illuminance", icon: <Lightbulb size={18} />, accent: "#F59E0B" },
+  { mode: "dali", label: "DALI Designer", hint: "Commission addresses, groups, scenes", icon: <Zap size={18} />, accent: "#8B5CF6" },
+  { mode: "programming", label: "DALI Programming", hint: "Compile and deploy the approved DALI design", icon: <Cpu size={18} />, accent: "#22C55E" },
+  { mode: "commissioning", label: "Commissioning", hint: "Test physical devices and generate report", icon: <Wrench size={18} />, accent: "#14B8A6" },
+  { mode: "emergency", label: "Emergency Lighting", hint: "Run compliance simulation and export safety reports", icon: <AlertTriangle size={18} />, accent: "#F43F5E" },
+  { mode: "import", label: "Import Fresh DWG", hint: "Flush state and load a fresh DWG", icon: <FilePlus size={18} />, accent: "#F59E0B" },
 ];
 
-/**
- * Walk the ancestor chain from a node upward. Returns the first
- * ancestor of each type, or null when the chain is broken.
- */
 function resolveAncestors(node: any, nodes: any[]) {
   const byId = new Map(nodes.map((n) => [String(n.id), n]));
-  const ancestors = {
-    project: null as any,
-    building: null as any,
-    floor: null as any,
-  };
+  const ancestors = { project: null as any, building: null as any, floor: null as any };
   let current = node;
   let safety = 0;
   while (current && safety < 20) {
-    const parent = current.parentId
-      ? byId.get(String(current.parentId))
-      : null;
+    const parent = current.parentId ? byId.get(String(current.parentId)) : null;
     if (!parent) break;
     if (parent.type === "Project") ancestors.project = parent;
     else if (parent.type === "Building") ancestors.building = parent;
@@ -109,13 +65,10 @@ export function DocumentActionsPanel() {
     );
   }
 
-  // Resolve the ancestor chain from the tree.
   const ancestors = resolveAncestors(selectedNode, nodes);
-
   const projectId = ancestors.project?.id ?? null;
   const buildingId = ancestors.building?.id ?? null;
   const floorId = ancestors.floor?.id ?? null;
-
   const projectName = ancestors.project?.name ?? "Unknown Project";
   const buildingName = ancestors.building?.name ?? "Unknown Building";
   const floorName = ancestors.floor?.name ?? "Unknown Floor";
@@ -124,8 +77,6 @@ export function DocumentActionsPanel() {
   const handleSelect = (mode: Mode) => {
     if (!documentId) return;
 
-    // 1. Dispatch metadata so the store's floorPlan.document slice
-    //    holds the correct names and context before navigating.
     dispatch(
       setDocumentMetadata({
         id: String(documentId),
@@ -140,48 +91,35 @@ export function DocumentActionsPanel() {
         activeFloorName: floorName,
         activeDocumentName: documentName,
         level: 0,
-        walls: [],
-        doors: [],
-        windows: [],
-        rooms: [],
-        importedDrawings: [],
-        electricalFixtures: [],
+        walls: [], doors: [], windows: [], rooms: [],
+        importedDrawings: [], electricalFixtures: [],
       })
     );
 
-    // 2. Expose the same context on window for peripheral integrations
     (window as any).__activeDocumentId = String(documentId);
     (window as any).__designerMode = mode;
     (window as any).__activeDocumentContext = {
-      projectId,
-      buildingId,
-      floorId,
-      projectName,
-      buildingName,
-      floorName,
-      documentName,
-      level: 0,
+      projectId, buildingId, floorId, projectName, buildingName, floorName, documentName, level: 0,
     };
 
-    // 3. Navigate to the chosen studio.
     if (mode === "dali") {
-      if (!projectId) {
-        console.warn("[DocumentActionsPanel] Cannot open DALI: missing projectId");
-        return;
-      }
-      dispatch(resetDaliDocument()); // Clear stale state
+      if (!projectId) return;
+      dispatch(resetDaliDocument());
       navigate(`/projects/${projectId}/floorplans/${documentId}/dali`);
       return;
     }
 
     if (mode === "programming") {
-      if (!projectId) {
-        console.warn("[DocumentActionsPanel] Cannot open Programming: missing projectId");
-        return;
-      }
-      dispatch(resetDaliDocument()); // Clear stale DALI state
-      dispatch(resetProgrammingState()); // Clear stale Programming state
+      if (!projectId) return;
+      dispatch(resetDaliDocument());
+      dispatch(resetProgrammingState());
       navigate(`/projects/${projectId}/floorplans/${documentId}/programming`);
+      return;
+    }
+
+    if (mode === "commissioning") {
+      if (!projectId) return;
+      navigate(`/projects/${projectId}/floorplans/${documentId}/commissioning`);
       return;
     }
 
@@ -211,9 +149,7 @@ export function DocumentActionsPanel() {
     <div className="document-actions-panel">
       <div className="document-actions-header">
         <div className="document-actions-name">{documentName}</div>
-        <div className="document-actions-context">
-          {buildingName} • {floorName}
-        </div>
+        <div className="document-actions-context">{buildingName} • {floorName}</div>
       </div>
 
       <div className="document-actions-tiles">

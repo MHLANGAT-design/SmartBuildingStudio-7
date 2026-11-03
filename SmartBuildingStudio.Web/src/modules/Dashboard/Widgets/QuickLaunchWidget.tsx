@@ -58,11 +58,18 @@ export default function QuickLaunchWidget() {
       accent: "#F43F5E",
     },
     {
+      name: "Commissioning",
+      shortLabel: "Commission",
+      path: "/explorer?intent=commissioning",
+      icon: "🛠️",
+      accent: "#14B8A6",
+    },
+    {
       name: "Compliance Reports Panel",
       shortLabel: "Reports",
       path: "/reports",
       icon: "📊",
-      accent: "#14B8A6",
+      accent: "#F59E0B",
       disabled: true,
     },
   ];

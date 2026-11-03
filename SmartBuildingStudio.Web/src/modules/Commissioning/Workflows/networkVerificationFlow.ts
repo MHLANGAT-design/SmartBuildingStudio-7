@@ -11,7 +11,7 @@ export class NetworkVerificationFlow {
   public static async execute(
     session: CommissioningSession,
     gatewayId: string,
-    lineId: string
+    lineId: string,
   ): Promise<CommissioningSession> {
     try {
       // 1. Run network sweep
@@ -21,12 +21,17 @@ export class NetworkVerificationFlow {
       const newFaults = FaultDetectionEngine.analyzeTestResults(testResults);
 
       // 3. Merge faults into session (avoiding duplicates by faultId)
-      const existingFaultIds = new Set(session.activeFaults.map(f => f.faultId));
-      const uniqueNewFaults = newFaults.filter(f => !existingFaultIds.has(f.faultId));
+      const existingFaults = session.activeFaults ?? [];
+      const existingFaultIds = new Set(existingFaults.map((f) => f.faultId));
+      const uniqueNewFaults = newFaults.filter((f) => !existingFaultIds.has(f.faultId));
 
       return {
         ...session,
-        activeFaults: [...session.activeFaults, ...uniqueNewFaults],
+        activeFaults: [...existingFaults, ...uniqueNewFaults],
+        // FIX: persist test results onto the session. Previously they were
+        // consumed only by FaultDetectionEngine and discarded, so
+        // recentTestResults stayed empty and Generate Report stayed gated.
+        testResults: [...(session.testResults ?? []), ...testResults],
       };
     } catch (e: any) {
       console.error('[NetworkVerificationFlow] Failed:', e);

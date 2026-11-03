@@ -11,7 +11,7 @@ export class SceneValidationFlow {
    */
   public static async execute(
     session: CommissioningSession,
-    sceneIds: string[]
+    sceneIds: string[],
   ): Promise<CommissioningSession> {
     try {
       const sceneTests = await SceneTestEngine.runSceneTests(sceneIds);
@@ -24,19 +24,21 @@ export class SceneValidationFlow {
             FaultClassifier.classify(
               'SCENE_FAILURE',
               test.sceneId,
-              `Scene "${test.sceneName}" failed to execute correctly.`
-            )
+              `Scene "${test.sceneName}" failed to execute correctly.`,
+            ),
           );
         }
       }
 
       // Merge faults
-      const existingFaultIds = new Set(session.activeFaults.map(f => f.faultId));
-      const uniqueNewFaults = newFaults.filter(f => !existingFaultIds.has(f.faultId));
+      // FIX: ?? [] guard so a partial session doesn't throw on .map.
+      const existingFaults = session.activeFaults ?? [];
+      const existingFaultIds = new Set(existingFaults.map((f) => f.faultId));
+      const uniqueNewFaults = newFaults.filter((f) => !existingFaultIds.has(f.faultId));
 
       return {
         ...session,
-        activeFaults: [...session.activeFaults, ...uniqueNewFaults],
+        activeFaults: [...existingFaults, ...uniqueNewFaults],
       };
     } catch (e: any) {
       console.error('[SceneValidationFlow] Failed:', e);

@@ -15,11 +15,6 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
 
-    // ── File watcher ──────────────────────────────────────────────
-    // Windows + antivirus + safe-write tooling frequently break
-    // fs.watch notifications, which makes Vite serve stale modules
-    // even though the files on disk are correct. Polling sidesteps
-    // the OS notification layer entirely.
     watch: {
       usePolling: true,
       interval: 200,
@@ -47,7 +42,6 @@ export default defineConfig({
         rewrite: (path) =>
           path.replace(/^\/api\/v1\/project-explorer/, '/api/projectexplorer'),
       },
-      // ─── Storage (served by ProjectExplorerService.Api) ──────────────
       '^/api/v1/storage': {
         target: 'http://127.0.0.1:5199',
         changeOrigin: true,
@@ -60,6 +54,19 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api\/v1\/floorplan-designer/, '/api'),
+      },
+
+      // ─── Commissioning Service ───────────────────────────────────────
+      // Stand up a CommissioningService.Api at 5200 alongside the other
+      // backend services. Until it exists, requests will 404 and the
+      // CommissioningApi USE_MOCK fallback (see services/CommissioningApi.ts)
+      // should be enabled.
+      '^/api/v1/commissioning': {
+        target: 'http://127.0.0.1:5200',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) =>
+          path.replace(/^\/api\/v1\/commissioning/, '/api/commissioning'),
       },
 
       // ─── ProductCatalogService ───────────────────────────────────────
