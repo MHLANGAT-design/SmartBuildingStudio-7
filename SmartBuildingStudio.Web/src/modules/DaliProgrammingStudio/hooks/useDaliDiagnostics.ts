@@ -38,7 +38,8 @@ export function useDaliDiagnostics(service: DiagnosticsService) {
     error,
     runDiagnostics,
     hasReport: report !== null,
+    // FIX: Use optional chaining for both isHealthy and summary
     isHealthy: report?.isHealthy ?? false,
-    issueCount: report?.summary.totalIssues ?? 0,
+    issueCount: (report as any)?.summary?.totalIssues ?? 0,
   };
 }

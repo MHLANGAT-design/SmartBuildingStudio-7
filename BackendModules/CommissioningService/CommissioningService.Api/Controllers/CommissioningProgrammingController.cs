@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using CommissioningService.Api.Contracts.Requests;
 using CommissioningService.Application.Commands.DeployProgramming;
 using CommissioningService.Application.Commands.VerifyProgramming;
+using CommissioningService.Application.Commands.RunProgrammingDiagnostics;
 
 namespace CommissioningService.Api.Controllers;
 
@@ -19,9 +20,7 @@ public class CommissioningProgrammingController : ControllerBase
     public CommissioningProgrammingController(IMediator mediator) => _mediator = mediator;
 
     [HttpPost("deploy")]
-    public async Task<ActionResult<object>> Deploy(
-        Guid sessionId,
-        [FromBody] DeployProgrammingRequest request)
+    public async Task<ActionResult<object>> Deploy(Guid sessionId, [FromBody] DeployProgrammingRequest request)
     {
         var sequences = request.Sequences.Select(s => new ProgrammingSequence(
             SequenceId: s.SequenceId,
@@ -57,9 +56,7 @@ public class CommissioningProgrammingController : ControllerBase
     }
 
     [HttpPost("verify")]
-    public async Task<ActionResult<object>> Verify(
-        Guid sessionId,
-        [FromBody] VerifyProgrammingRequest request)
+    public async Task<ActionResult<object>> Verify(Guid sessionId, [FromBody] VerifyProgrammingRequest request)
     {
         var devices = request.ExpectedDevices.Select(d => new VerificationDeviceDto(
             DeviceId: d.DeviceId,
@@ -70,6 +67,15 @@ public class CommissioningProgrammingController : ControllerBase
         )).ToList();
 
         var command = new VerifyProgrammingCommand(sessionId, request.DeploymentId, devices);
+        var report = await _mediator.Send(command);
+
+        return Ok(report);
+    }
+
+    [HttpPost("diagnostics")]
+    public async Task<ActionResult<object>> RunDiagnostics(Guid sessionId, [FromBody] RunDiagnosticsRequest request)
+    {
+        var command = new RunProgrammingDiagnosticsCommand(sessionId, request.GatewayId, request.LineId);
         var report = await _mediator.Send(command);
 
         return Ok(report);

@@ -315,6 +315,34 @@ export class CommissioningApi {
     return handleResponse(res);
   }
 
+  // ── Programming Diagnostics ─────────────────────────────────────
+
+  public static async runProgrammingDiagnostics(
+    gatewayId: string,
+    lineId: string,
+    sessionId: string,
+  ): Promise<any> {
+    if (USE_MOCK) {
+      await mockDelay(800);
+      return {
+        gatewayId,
+        lineId,
+        executedAt: nowIso(),
+        isHealthy: true,
+        busStats: { successful: 100, failed: 0, timeouts: 0, successRatePercent: 100 },
+        summary: { totalIssues: 0 },
+        deviceStatuses: [],
+        globalIssues: [],
+      };
+    }
+    const res = await fetch(`${API_BASE_URL}/api/commissioning/session/${sessionId}/programming/diagnostics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gatewayId, lineId }),
+    });
+    return handleResponse(res);
+  }
+
   // ── Network state ───────────────────────────────────────────────
 
   public static async getNetworkState(

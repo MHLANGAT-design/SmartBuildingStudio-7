@@ -104,12 +104,15 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<GatewayResponseMapper>();
         services.AddScoped<GatewaySessionManager>();
 
-        // Programming deployment + verification providers
+        // Programming providers
         services.AddScoped<GatewayProgrammingProvider>();
         services.AddScoped<IGatewayProgrammingProvider>(sp => sp.GetRequiredService<GatewayProgrammingProvider>());
 
         services.AddScoped<GatewayVerificationProvider>();
         services.AddScoped<IProgrammingVerificationProvider>(sp => sp.GetRequiredService<GatewayVerificationProvider>());
+
+        services.AddScoped<GatewayDiagnosticsProvider>();
+        services.AddScoped<IProgrammingDiagnosticsProvider>(sp => sp.GetRequiredService<GatewayDiagnosticsProvider>());
 
         services.AddScoped<DaliDesignProvider>();
         services.AddScoped<ICommissioningDesignProvider>(sp => sp.GetRequiredService<DaliDesignProvider>());
