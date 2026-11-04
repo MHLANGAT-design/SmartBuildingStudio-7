@@ -104,7 +104,14 @@ export const programmingSlice = createSlice({
 
     setDeployingStatus: (state, action: PayloadAction<boolean>) => {
       state.isDeploying = action.payload;
-      if (action.payload) state.jobState = PROGRAMMING_JOB_STATES.DEPLOYING;
+      if (action.payload) {
+        state.jobState = PROGRAMMING_JOB_STATES.DEPLOYING;
+        // FIX: Clear old result and progress when starting a new deployment
+        // This prevents the UI from hanging on the "Deploying..." dialog
+        // due to a stale deploymentResult from a previous run.
+        state.deploymentResult = null;
+        state.deploymentProgress = null;
+      }
     },
 
     setVerifyingStatus: (state, action: PayloadAction<boolean>) => {
@@ -155,7 +162,6 @@ export const programmingSlice = createSlice({
   },
 });
 
-// CRITICAL: ALL ACTIONS MUST BE EXPORTED HERE
 export const {
   setApprovedDesign,
   setCurrentDocument,

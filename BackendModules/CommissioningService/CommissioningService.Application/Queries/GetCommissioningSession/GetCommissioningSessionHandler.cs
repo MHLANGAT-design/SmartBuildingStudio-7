@@ -1,0 +1,28 @@
+using System.Threading;
+using System.Threading.Tasks;
+using MediatR;
+using CommissioningService.Domain.Repositories;
+using CommissioningService.Domain.ValueObjects;
+using CommissioningService.Domain.Exceptions;
+using CommissioningService.Application.DTOs;
+using CommissioningService.Application.Mapping;
+
+namespace CommissioningService.Application.Queries.GetCommissioningSession;
+
+public class GetCommissioningSessionHandler : IRequestHandler<GetCommissioningSessionQuery, CommissioningSessionDto>
+{
+    private readonly ICommissioningSessionRepository _repository;
+
+    public GetCommissioningSessionHandler(ICommissioningSessionRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<CommissioningSessionDto> Handle(GetCommissioningSessionQuery request, CancellationToken cancellationToken)
+    {
+        var session = await _repository.GetByIdAsync(new CommissioningSessionId(request.SessionId));
+        if (session == null) throw new CommissioningSessionNotFoundException(request.SessionId);
+
+        return session.ToDto();
+    }
+}

@@ -14,13 +14,14 @@ export class NetworkVerificationFlow {
     lineId: string,
   ): Promise<CommissioningSession> {
     try {
-      // 1. Run network sweep
-      const testResults = await NetworkTestEngine.runNetworkSweep(gatewayId, lineId);
+      const testResults = await NetworkTestEngine.runNetworkSweep(
+        gatewayId,
+        lineId,
+        session.sessionId,
+      );
 
-      // 2. Analyze failures into faults
       const newFaults = FaultDetectionEngine.analyzeTestResults(testResults);
 
-      // 3. Merge faults into session (avoiding duplicates by faultId)
       const existingFaults = session.activeFaults ?? [];
       const existingFaultIds = new Set(existingFaults.map((f) => f.faultId));
       const uniqueNewFaults = newFaults.filter((f) => !existingFaultIds.has(f.faultId));
@@ -28,9 +29,6 @@ export class NetworkVerificationFlow {
       return {
         ...session,
         activeFaults: [...existingFaults, ...uniqueNewFaults],
-        // FIX: persist test results onto the session. Previously they were
-        // consumed only by FaultDetectionEngine and discarded, so
-        // recentTestResults stayed empty and Generate Report stayed gated.
         testResults: [...(session.testResults ?? []), ...testResults],
       };
     } catch (e: any) {

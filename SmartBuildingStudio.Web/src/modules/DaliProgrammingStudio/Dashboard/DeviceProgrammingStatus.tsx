@@ -13,10 +13,15 @@ export const DeviceProgrammingStatus: React.FC = () => {
   const result = useAppSelector(selectDeploymentResult);
   const verification = useAppSelector(selectVerificationReport);
 
-  const total = design?.devices.length ?? 0;
-  const programmed = result?.successfulSequences.length ?? 0;
-  const failed = result?.failedSequences.length ?? 0;
-  const verified = verification?.summary.matchingDevices ?? 0;
+  const total = design?.devices?.length ?? 0;
+  
+  // FIX: Added optional chaining on `result` and the arrays, plus ?? 0 fallback.
+  // The backend returns commandsSent/commandsFailed counts, but ProgrammingService
+  // does not populate successfulSequences/failedSequences arrays yet.
+  const programmed = result?.successfulSequences?.length ?? 0;
+  const failed = result?.failedSequences?.length ?? 0;
+  
+  const verified = verification?.summary?.matchingDevices ?? 0;
 
   return (
     <div style={cardStyle}>

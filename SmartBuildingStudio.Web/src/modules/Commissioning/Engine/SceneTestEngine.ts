@@ -7,12 +7,15 @@ export class SceneTestEngine {
   /**
    * Runs tests for multiple scenes in sequence.
    */
-  public static async runSceneTests(sceneIds: string[]): Promise<SceneTest[]> {
+  public static async runSceneTests(
+    sceneIds: string[],
+    sessionId: string,
+  ): Promise<SceneTest[]> {
     const results: SceneTest[] = [];
     
     for (const sceneId of sceneIds) {
       try {
-        const test = await SceneService.executeSceneTest(sceneId);
+        const test = await SceneService.executeSceneTest(sceneId, sessionId);
         results.push(test);
       } catch (e: any) {
         // Push a failed test result if the service throws

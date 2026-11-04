@@ -11,7 +11,8 @@ import { useDaliDiagnostics } from '@/modules/DaliProgrammingStudio/hooks/useDal
 import { useConfigurationBackup } from '@/modules/DaliProgrammingStudio/hooks/useConfigurationBackup';
 import { 
   selectProgrammingPlan, selectApprovedDesign, selectDeploymentResult,
-  selectDeploymentProgress, selectVerificationReport, selectWarnings
+  selectDeploymentProgress, selectVerificationReport, selectWarnings,
+  selectIsDeploying
 } from '@/modules/DaliProgrammingStudio/store/programmingSelectors';
 
 import { ProgrammingWorkspaceProvider } from '@/modules/DaliProgrammingStudio/Workspace/ProgrammingWorkspaceContext';
@@ -94,9 +95,19 @@ const ProgrammingStudioContent: React.FC = () => {
 
   useEffect(() => {
     if (deploymentResult && isDeployProgressOpen) {
+      // 1. Trigger the state update to close the dialog
       setIsDeployProgressOpen(false);
-      if (deploymentResult.success) alert(`Deployment Successful!\n${deploymentResult.successfulSequences.length} sequences programmed.`);
-      else alert(`Deployment Failed.`);
+      
+      // 2. Delay the blocking native alert slightly so React can paint the unmounted dialog first
+      const timer = setTimeout(() => {
+        if (deploymentResult.success) {
+          alert(`Deployment Successful!\n${deploymentResult.successfulSequences?.length || 0} sequences programmed.`);
+        } else {
+          alert(`Deployment Failed.`);
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
   }, [deploymentResult, isDeployProgressOpen]);
 
@@ -109,11 +120,24 @@ const ProgrammingStudioContent: React.FC = () => {
     if (!plan || !design) return;
     const gatewayId = design.topology.gateways[0]?.gatewayId;
     const lineId = design.topology.lines[0]?.lineId;
-    if (!gatewayId || !lineId) return;
+    const projectId = design.topology.projectId;
+    const floorplanId = design.topology.floorplanId;
+    
+    if (!gatewayId || !lineId || !projectId || !floorplanId) {
+      alert('Design is missing required context (gateway, line, project, or floorplan).');
+      return;
+    }
+
     setIsDeployConfirmOpen(false);
     setIsDeployProgressOpen(true);
-    try { await deploy(plan, gatewayId, lineId); }
-    catch (e) { console.error(e); setIsDeployProgressOpen(false); }
+
+    try { 
+      await deploy(plan, gatewayId, lineId, projectId, floorplanId); 
+    }
+    catch (e) { 
+      console.error(e); 
+      setIsDeployProgressOpen(false); 
+    }
   };
 
   const handleVerifyClick = async () => {

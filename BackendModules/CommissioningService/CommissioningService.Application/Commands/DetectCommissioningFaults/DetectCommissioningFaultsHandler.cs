@@ -1,0 +1,29 @@
+using System.Threading;
+using System.Threading.Tasks;
+using MediatR;
+using CommissioningService.Domain.Repositories;
+using CommissioningService.Domain.ValueObjects;
+using CommissioningService.Domain.Exceptions;
+
+namespace CommissioningService.Application.Commands.DetectCommissioningFaults;
+
+public class DetectCommissioningFaultsHandler : IRequestHandler<DetectCommissioningFaultsCommand, Unit>
+{
+    private readonly ICommissioningSessionRepository _repository;
+
+    public DetectCommissioningFaultsHandler(ICommissioningSessionRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Unit> Handle(DetectCommissioningFaultsCommand request, CancellationToken cancellationToken)
+    {
+        var session = await _repository.GetByIdAsync(new CommissioningSessionId(request.SessionId));
+        if (session == null) throw new CommissioningSessionNotFoundException(request.SessionId);
+
+        // Analyze session state, find faults, call session.RegisterDefect(...)
+
+        await _repository.UpdateAsync(session);
+        return Unit.Value;
+    }
+}

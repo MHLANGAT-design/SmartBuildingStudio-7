@@ -14,9 +14,8 @@ export class SceneValidationFlow {
     sceneIds: string[],
   ): Promise<CommissioningSession> {
     try {
-      const sceneTests = await SceneTestEngine.runSceneTests(sceneIds);
+      const sceneTests = await SceneTestEngine.runSceneTests(sceneIds, session.sessionId);
 
-      // Convert failed scenes into faults
       const newFaults: Fault[] = [];
       for (const test of sceneTests) {
         if (test.status === 'FAILED') {
@@ -30,8 +29,6 @@ export class SceneValidationFlow {
         }
       }
 
-      // Merge faults
-      // FIX: ?? [] guard so a partial session doesn't throw on .map.
       const existingFaults = session.activeFaults ?? [];
       const existingFaultIds = new Set(existingFaults.map((f) => f.faultId));
       const uniqueNewFaults = newFaults.filter((f) => !existingFaultIds.has(f.faultId));

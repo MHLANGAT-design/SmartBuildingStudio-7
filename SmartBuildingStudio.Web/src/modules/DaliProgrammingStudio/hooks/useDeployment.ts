@@ -21,8 +21,14 @@ export function useDeployment(service: ProgrammingService) {
   const percentage = useAppSelector(selectDeploymentPercentage);
   const error = useAppSelector(selectError);
 
-  const deploy = useCallback(async (plan: ProgrammingPlan, gatewayId: string, lineId: string) => {
-    return dispatch(deployPlan({ service, plan, gatewayId, lineId })).unwrap();
+  const deploy = useCallback(async (
+    plan: ProgrammingPlan,
+    gatewayId: string,
+    lineId: string,
+    projectId: string,     // ← ADDED
+    floorplanId: string,   // ← ADDED
+  ) => {
+    return dispatch(deployPlan({ service, plan, gatewayId, lineId, projectId, floorplanId })).unwrap();
   }, [dispatch, service]);
 
   return {

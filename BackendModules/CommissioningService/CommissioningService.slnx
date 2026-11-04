@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CommissioningService.Domain/CommissioningService.Domain.csproj" />
+  <Project Path="CommissioningService.Application/CommissioningService.Application.csproj" />
+  <Project Path="CommissioningService.Infrastructure/CommissioningService.Infrastructure.csproj" />
+  <Project Path="CommissioningService.Api/CommissioningService.Api.csproj" />
+</Solution>

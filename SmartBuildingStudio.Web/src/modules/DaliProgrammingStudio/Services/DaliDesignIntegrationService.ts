@@ -46,6 +46,7 @@ interface SceneRaw {
 interface DaliDocumentRaw {
   projectId?: string;
   documentId?: string;
+  floorplanId?: string;   // ← ADDED
   devices: DaliDeviceRaw[];
   lines: DaliLineRaw[];
   groups: GroupRaw[];
@@ -67,6 +68,7 @@ export class DaliDesignIntegrationService {
     const doc: DaliDocumentRaw = daliState.document;
     const now = new Date().toISOString();
     const projectId = doc.projectId || doc.documentId || 'unknown-project';
+    const floorplanId = doc.floorplanId || doc.documentId || 'unknown-floorplan';   // ← ADDED
 
     // ── Map lines ────────────────────────────────────────────────
     const lines = (doc.lines || []).map((line) => ({
@@ -177,6 +179,7 @@ export class DaliDesignIntegrationService {
     return {
       topology: {
         projectId,
+        floorplanId,   // ← ADDED
         gateways: [{
           gatewayId: 'default-gateway',
           name: 'Main Gateway',

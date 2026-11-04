@@ -11,35 +11,51 @@ import type { VerificationReport } from '@/modules/DaliProgrammingStudio/Verific
 import { DaliDesignIntegrationService } from '@/modules/DaliProgrammingStudio/Services/DaliDesignIntegrationService';
 import { ProgrammingService } from '@/modules/DaliProgrammingStudio/Services/ProgrammingService';
 import { VerificationService } from '@/modules/DaliProgrammingStudio/Services/VerificationService';
+import { startCommissioningSession } from '@/modules/Commissioning/store/commissioningThunks';
 
 import {
-  setCompilingStatus,
-  setDeployingStatus,
-  setVerifyingStatus,
-  setApprovedDesign,
-  setProgrammingPlan,
-  setDeploymentProgress,
-  setDeploymentResult,
-  setVerificationReport,
-  setError,
-  setCompileErrors,
+  setCompilingStatus, setDeployingStatus, setVerifyingStatus,
+  setApprovedDesign, setProgrammingPlan, setDeploymentProgress,
+  setDeploymentResult, setVerificationReport, setError, setCompileErrors,
 } from '@/modules/DaliProgrammingStudio/store/programmingSlice';
 
 export const loadApprovedDesign = createAsyncThunk<
   ApprovedDaliDesign,
   { projectId: string },
-  { rejectValue: string }
+  { state: RootState; rejectValue: string }
 >(
   'daliProgramming/loadApprovedDesign',
-  async ({ projectId }, { dispatch, rejectWithValue }) => {
+  async ({ projectId }, { dispatch, getState, rejectWithValue }) => {
     try {
       const service = new DaliDesignIntegrationService();
-      const design = await (service as any).fetchApprovedDesign(projectId); 
+      const design = service.fetchApprovedDesign(getState());
       dispatch(setApprovedDesign(design));
       return design;
     } catch (e: any) {
       dispatch(setError(e.message || 'Failed to load design'));
       return rejectWithValue(e.message);
+    }
+  }
+);
+
+export const ensureCommissioningSession = createAsyncThunk<
+  string,
+  { projectId: string; floorplanId: string },
+  { state: RootState; rejectValue: string }
+>(
+  'daliProgramming/ensureCommissioningSession',
+  async ({ projectId, floorplanId }, { dispatch, getState, rejectWithValue }) => {
+    const state = getState() as any;
+    const existing = state.commissioning?.activeSession?.sessionId;
+    if (existing) return existing;
+
+    try {
+      const session = await dispatch(
+        startCommissioningSession({ projectId, floorId: floorplanId })
+      ).unwrap();
+      return session.sessionId;
+    } catch (e: any) {
+      return rejectWithValue(e.message || 'Failed to start commissioning session');
     }
   }
 );
@@ -53,20 +69,16 @@ export const compileDesign = createAsyncThunk<
   async ({ service }, { dispatch, getState, rejectWithValue }) => {
     const state = getState() as any;
     const design = state.daliProgramming.approvedDesign;
-    
-    if (!design) {
-      return rejectWithValue('No approved design loaded');
-    }
+    if (!design) return rejectWithValue('No approved design loaded');
 
     dispatch(setCompilingStatus(true));
-    dispatch(setCompileErrors([])); 
-    dispatch(setError(null));       
+    dispatch(setCompileErrors([]));
+    dispatch(setError(null));
 
     try {
       const { plan, errors } = service.compile(design);
-      
       if (!plan) {
-        dispatch(setCompileErrors(errors)); 
+        dispatch(setCompileErrors(errors));
         return rejectWithValue('Compilation failed');
       }
       dispatch(setProgrammingPlan(plan));
@@ -82,18 +94,24 @@ export const compileDesign = createAsyncThunk<
 
 export const deployPlan = createAsyncThunk<
   DeploymentResult,
-  { service: ProgrammingService; plan: ProgrammingPlan; gatewayId: string; lineId: string },
-  { rejectValue: string }
+  { service: ProgrammingService; plan: ProgrammingPlan; gatewayId: string; lineId: string; projectId: string; floorplanId: string },
+  { state: RootState; rejectValue: string }
 >(
   'daliProgramming/deployPlan',
-  async ({ service, plan, gatewayId, lineId }, { dispatch, rejectWithValue }) => {
-    dispatch(setDeployingStatus(true));
+  async ({ service, plan, gatewayId, lineId, projectId, floorplanId }, { dispatch, getState, rejectWithValue }) => {
     try {
+      // Ensure session exists
+      const state = getState() as any;
+      if (!state.commissioning?.activeSession?.sessionId) {
+        await dispatch(ensureCommissioningSession({ projectId, floorplanId })).unwrap();
+      }
+
+      dispatch(setDeployingStatus(true));
       const onProgress = (progress: DeploymentProgress) => {
         dispatch(setDeploymentProgress(progress));
       };
 
-      const result = await service.deploy(`job_${Date.now()}`, plan, gatewayId, lineId, onProgress);
+      const result = await service.deploy(plan, gatewayId, lineId, onProgress);
       dispatch(setDeploymentResult(result));
       return result;
     } catch (e: any) {

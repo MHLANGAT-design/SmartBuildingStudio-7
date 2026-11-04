@@ -8,10 +8,13 @@ export class NetworkTestEngine {
   /**
    * Runs a full sweep of a network line.
    */
-  public static async runNetworkSweep(gatewayId: string, lineId: string): Promise<TestResult[]> {
-    const results = await TestService.testNetworkLine(gatewayId, lineId);
-    
-    // Ensure all results are marked with the correct test type
+  public static async runNetworkSweep(
+    gatewayId: string,
+    lineId: string,
+    sessionId: string,
+  ): Promise<TestResult[]> {
+    const results = await TestService.testNetworkLine(gatewayId, lineId, sessionId);
+
     return results.map(r => ({
       ...r,
       testType: 'NETWORK'

@@ -6,24 +6,19 @@ import type { DeploymentResult } from '@/modules/DaliProgrammingStudio/Deploymen
 import type { DeploymentProgress } from '@/modules/DaliProgrammingStudio/Deployment/DeploymentProgress';
 
 import { DaliConfigurationCompiler } from '@/modules/DaliProgrammingStudio/Compiler/DaliConfigurationCompiler';
-import { DeploymentManager } from '@/modules/DaliProgrammingStudio/Deployment/DeploymentManager';
-import type { IGatewayAdapter } from '@/modules/DaliProgrammingStudio/types/gateway.types';
-import type { DaliCommandAudit } from '@/modules/DaliProgrammingStudio/Commands/DaliCommandAudit';
+import { CommissioningApi } from '@/modules/Commissioning/services/CommissioningApi';
+import { store } from '@/Application/ConfigureStore';
 
 export class ProgrammingService {
   private compiler = new DaliConfigurationCompiler();
-  private deploymentManager: DeploymentManager;
-
-  constructor(gateway: IGatewayAdapter, audit: DaliCommandAudit) {
-    this.deploymentManager = new DeploymentManager(gateway, audit);
-  }
 
   /**
    * Step 1: Compile an approved design into a safe programming plan.
+   * Stays in the frontend (pure data transformation, no hardware).
    */
   public compile(design: ApprovedDaliDesign): { plan: ProgrammingPlan | null; errors: any[] } {
     const { result, plan } = this.compiler.compile(design);
-    
+
     if (!result.success) {
       return { plan: null, errors: result.errors };
     }
@@ -31,16 +26,53 @@ export class ProgrammingService {
   }
 
   /**
-   * Step 2: Deploy the plan to the physical gateway.
-   * NOTE: Safety Rule #3 - This must ONLY be called after explicit user confirmation.
+   * Step 2: Deploy the plan to the physical gateway via the backend.
+   * Reads sessionId from the commissioning slice — the DaliProgrammingStudio
+   * doesn't need to know about commissioning internals.
    */
   public async deploy(
-    jobId: string,
     plan: ProgrammingPlan,
     gatewayId: string,
     targetLineId: string,
-    onProgress?: (progress: DeploymentProgress) => void
+    onProgress?: (progress: DeploymentProgress) => void,
   ): Promise<DeploymentResult> {
-    return this.deploymentManager.deploy(jobId, plan, gatewayId, targetLineId, onProgress);
+    const sessionId = (store.getState() as any)?.commissioning?.activeSession?.sessionId;
+
+    if (!sessionId) {
+      throw new Error('No active commissioning session. Start one before deploying.');
+    }
+
+    onProgress?.({
+      status: 'running',
+      percentComplete: 10,
+      message: 'Sending deployment request to backend…',
+    });
+
+    const result = await CommissioningApi.deployProgramming(
+      plan,
+      gatewayId,
+      targetLineId,
+      sessionId,
+    );
+
+    onProgress?.({
+      status: result.success ? 'completed' : 'failed',
+      percentComplete: 100,
+      message: result.success
+        ? `Deployment complete: ${result.commandsSent} commands sent`
+        : `Deployment failed: ${result.errorMessage}`,
+    });
+
+    // FIX: Populate the arrays so the UI and alerts can read .length
+    return {
+      deploymentId: result.deploymentId,
+      success: result.success,
+      totalCommands: result.commandsSent,
+      failedCommands: result.commandsFailed,
+      successfulSequences: result.success ? plan.sequences : [],
+      failedSequences: !result.success ? plan.sequences : [],
+      errors: result.errorMessage ? [result.errorMessage] : [],
+      completedAt: new Date().toISOString(),
+    } as unknown as DeploymentResult;
   }
 }

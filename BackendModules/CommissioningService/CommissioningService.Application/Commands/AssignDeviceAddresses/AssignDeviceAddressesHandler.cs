@@ -1,0 +1,52 @@
+using System.Threading;
+using System.Threading.Tasks;
+using MediatR;
+using CommissioningService.Domain.Repositories;
+using CommissioningService.Domain.Services;
+using CommissioningService.Domain.ValueObjects;
+using CommissioningService.Domain.Exceptions;
+using CommissioningService.Application.Interfaces;
+
+namespace CommissioningService.Application.Commands.AssignDeviceAddresses;
+
+public class AssignDeviceAddressesHandler : IRequestHandler<AssignDeviceAddressesCommand, Unit>
+{
+    private readonly ICommissioningSessionRepository _repository;
+    private readonly CommissioningSessionDomainService _domainService;
+    private readonly IAddressingProvider _addressingProvider;
+
+    public AssignDeviceAddressesHandler(
+        ICommissioningSessionRepository repository,
+        CommissioningSessionDomainService domainService,
+        IAddressingProvider addressingProvider)
+    {
+        _repository = repository;
+        _domainService = domainService;
+        _addressingProvider = addressingProvider;
+    }
+
+    public async Task<Unit> Handle(AssignDeviceAddressesCommand request, CancellationToken cancellationToken)
+    {
+        var session = await _repository.GetByIdAsync(new CommissioningSessionId(request.SessionId));
+        if (session == null) throw new CommissioningSessionNotFoundException(request.SessionId);
+
+        // 1. Write the address to the physical gateway first
+        var success = await _addressingProvider.AssignAddressAsync(
+            "gw-mock-001",
+            "line-default",
+            request.DeviceExternalId,
+            request.Address,
+            cancellationToken);
+
+        if (!success)
+            throw new CommissioningSessionInvalidStateException(
+                $"Gateway refused to program address {request.Address} to device {request.DeviceExternalId}.");
+
+        // 2. Update the domain aggregate (advances state machine — only valid in ADDRESSING)
+        _domainService.AssignAddress(session, request.DeviceExternalId, request.Address);
+
+        // 3. Persist
+        await _repository.UpdateAsync(session);
+        return Unit.Value;
+    }
+}
