@@ -3,7 +3,6 @@
 import React from 'react';
 import { Modal, Footer } from '@/modules/DaliProgrammingStudio/Dialogs/LoadDesignDialog';
 import type { VerificationReport } from '@/modules/DaliProgrammingStudio/Verification/VerificationReport';
-import { VERIFICATION_CHECK_RESULTS } from '@/modules/DaliProgrammingStudio/constants/verificationConstants';
 
 interface Props {
   isOpen: boolean;
@@ -21,8 +20,9 @@ export const VerificationReportDialog: React.FC<Props> = ({ isOpen, onClose, rep
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
         <Stat label="Passed" value={summary.passed} color="#4ADE80" />
         <Stat label="Failed" value={summary.failed} color="#F87171" />
-        <Stat label="Unsupported" value={summary.notSupported} color="#FBBF24" />
-        <Stat label="Not Tested" value={summary.notTested} color="#94A3B8" />
+        {/* Note: The backend currently only returns Passed/Failed. These two are placeholders until we add them. */}
+        <Stat label="Unsupported" value={(summary as any).notSupported ?? 0} color="#FBBF24" />
+        <Stat label="Not Tested" value={(summary as any).notTested ?? 0} color="#94A3B8" />
       </div>
 
       <div style={{ 
@@ -37,21 +37,23 @@ export const VerificationReportDialog: React.FC<Props> = ({ isOpen, onClose, rep
       </div>
 
       <div style={{ maxHeight: 250, overflow: 'auto' }}>
-        {report.results.map(r => (
-          <div key={r.checkId} style={{ padding: 6, borderBottom: '1px solid #1F2937', fontSize: 10 }}>
+        {report.results.map((r: any, index: number) => (
+          // FIX: Using deviceId as the key, with a fallback to index to prevent duplicate key warnings
+          <div key={r.deviceId || index} style={{ padding: 6, borderBottom: '1px solid #1F2937', fontSize: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ color: '#E5E7EB' }}>{r.deviceId} · {r.parameter}</span>
+              <span style={{ color: '#E5E7EB' }}>
+                {r.deviceId} · Address {r.expectedAddress}
+              </span>
               <span style={{ 
-                color: r.result === VERIFICATION_CHECK_RESULTS.PASS ? '#4ADE80' 
-                  : r.result === VERIFICATION_CHECK_RESULTS.FAIL ? '#F87171' 
-                  : '#94A3B8', 
+                color: r.matchesExpected ? '#4ADE80' : '#F87171', 
                 fontWeight: 'bold' 
               }}>
-                {r.result}
+                {r.matchesExpected ? 'PASSED' : 'FAILED'}
               </span>
             </div>
             <div style={{ color: '#64748B', fontFamily: 'monospace', fontSize: 9 }}>
-              Expected: {JSON.stringify(r.expectedValue)} → Actual: {JSON.stringify(r.actualValue)}
+              Expected Address: {r.expectedAddress} → Actual Address: {r.actualAddress}
+              {r.errorMessage && <span style={{ color: '#F87171', display: 'block' }}>{r.errorMessage}</span>}
             </div>
           </div>
         ))}

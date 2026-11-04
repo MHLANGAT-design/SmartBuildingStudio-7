@@ -271,6 +271,50 @@ export class CommissioningApi {
     return handleResponse(res);
   }
 
+  // ── Programming Verification ────────────────────────────────────
+
+  public static async verifyProgramming(
+    deploymentId: string,
+    expectedDevices: any[],
+    sessionId: string,
+  ): Promise<any> {
+    if (USE_MOCK) {
+      await mockDelay(800);
+      return {
+        deploymentId,
+        isFullyVerified: true,
+        verifiedAt: nowIso(),
+        summary: {
+          matchingDevices: expectedDevices.length,
+          mismatchedDevices: 0,
+          passed: expectedDevices.length,
+          failed: 0,
+        },
+        results: expectedDevices.map((d: any) => ({
+          deviceId: d.deviceId,
+          matchesExpected: true,
+          expectedAddress: d.hardwareAddress,
+          actualAddress: d.hardwareAddress,
+        })),
+      };
+    }
+    const res = await fetch(`${API_BASE_URL}/api/commissioning/session/${sessionId}/programming/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deploymentId,
+        expectedDevices: expectedDevices.map((d: any) => ({
+          deviceId: d.deviceId,
+          hardwareAddress: d.hardwareAddress,
+          deviceType: d.deviceType,
+          groups: (d.groups || []).map((g: any) => g.groupId),
+          scenes: (d.scenes || []).map((s: any) => ({ sceneId: s.sceneId, level: s.level })),
+        })),
+      }),
+    });
+    return handleResponse(res);
+  }
+
   // ── Network state ───────────────────────────────────────────────
 
   public static async getNetworkState(

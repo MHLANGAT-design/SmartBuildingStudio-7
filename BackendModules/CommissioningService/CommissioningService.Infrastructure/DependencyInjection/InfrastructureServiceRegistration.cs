@@ -104,9 +104,12 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<GatewayResponseMapper>();
         services.AddScoped<GatewaySessionManager>();
 
-        // NEW: Programming deployment provider (used by DeployProgrammingHandler)
+        // Programming deployment + verification providers
         services.AddScoped<GatewayProgrammingProvider>();
         services.AddScoped<IGatewayProgrammingProvider>(sp => sp.GetRequiredService<GatewayProgrammingProvider>());
+
+        services.AddScoped<GatewayVerificationProvider>();
+        services.AddScoped<IProgrammingVerificationProvider>(sp => sp.GetRequiredService<GatewayVerificationProvider>());
 
         services.AddScoped<DaliDesignProvider>();
         services.AddScoped<ICommissioningDesignProvider>(sp => sp.GetRequiredService<DaliDesignProvider>());
@@ -120,14 +123,12 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<ICommissioningReportService>(sp => sp.GetRequiredService<CommissioningReportProvider>());
 
         // ─── 6. Business Logic Processors & Executors ─────────────────────
-        // Addressing
         services.AddScoped<CommissioningAddressingProvider>();
         services.AddScoped<IAddressingProvider>(sp => sp.GetRequiredService<CommissioningAddressingProvider>());
         services.AddScoped<AddressAssignmentResolver>();
         services.AddScoped<AddressConflictDetector>();
         services.AddScoped<AddressVerificationService>();
 
-        // Testing
         services.AddScoped<CommissioningTestExecutor>();
         services.AddScoped<ICommissioningTestExecutor>(sp => sp.GetRequiredService<CommissioningTestExecutor>());
         services.AddScoped<DeviceFunctionalTestExecutor>();
@@ -139,7 +140,6 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<SignalVerificationExecutor>();
         services.AddScoped<TestResultProcessor>();
 
-        // Network & Scenes & Signals
         services.AddScoped<NetworkStateProvider>();
         services.AddScoped<NetworkHealthAnalyzer>();
         services.AddScoped<NetworkTestProvider>();
@@ -154,13 +154,11 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<SignalVerificationProvider>();
         services.AddScoped<SignalResponseProcessor>();
 
-        // Fault Management
         services.AddScoped<CommissioningFaultDetector>();
         services.AddScoped<FaultClassifier>();
         services.AddScoped<FaultCorrelationService>();
         services.AddScoped<FaultResolutionService>();
 
-        // Reporting & Audit & Realtime
         services.AddScoped<CommissioningReportGenerator>();
         services.AddScoped<CommissioningReportExporter>();
         services.AddScoped<CommissioningReportMapper>();

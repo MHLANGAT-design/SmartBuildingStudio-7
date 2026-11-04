@@ -5,11 +5,11 @@ namespace CommissioningService.Domain.Entities;
 
 public class CommissioningDefect : Entity<Guid>
 {
-    public string FaultId { get; private set; }
-    public string Category { get; private set; }
-    public string Description { get; private set; }
-    public string Severity { get; private set; }
-    public string Status { get; private set; }
+    public string FaultId { get; private set; } = string.Empty;
+    public string Category { get; private set; } = string.Empty;
+    public string Description { get; private set; } = string.Empty;
+    public string Severity { get; private set; } = string.Empty;
+    public string Status { get; private set; } = "OPEN";
     public DateTime DetectedAt { get; private set; }
     public DateTime? ResolvedAt { get; private set; }
     public string? ResolvedBy { get; private set; }

@@ -7,7 +7,7 @@ public class CommissioningReport : Entity<Guid>
 {
     public Guid SessionId { get; private set; }
     public DateTime GeneratedAt { get; private set; }
-    public string OverallStatus { get; private set; }
+    public string OverallStatus { get; private set; } = string.Empty;
     public int TotalDevices { get; private set; }
     public int PassedDevices { get; private set; }
     public int FailedDevices { get; private set; }

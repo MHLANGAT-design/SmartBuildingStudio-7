@@ -5,8 +5,8 @@ namespace CommissioningService.Domain.Entities;
 
 public class AddressAssignment : Entity<Guid>
 {
-    public string DeviceId { get; private set; }
-    public string LineId { get; private set; }
+    public string DeviceId { get; private set; } = string.Empty;
+    public string LineId { get; private set; } = string.Empty;
     public int ShortAddress { get; private set; }
     public bool IsVerified { get; private set; }
 

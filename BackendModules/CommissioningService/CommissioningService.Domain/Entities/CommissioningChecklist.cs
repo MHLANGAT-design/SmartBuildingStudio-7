@@ -5,7 +5,7 @@ namespace CommissioningService.Domain.Entities;
 
 public class CommissioningChecklist : Entity<Guid>
 {
-    public string Name { get; private set; }
+    public string Name { get; private set; } = string.Empty;
     public bool IsCompleted { get; private set; }
     public DateTime? CompletedAt { get; private set; }
 

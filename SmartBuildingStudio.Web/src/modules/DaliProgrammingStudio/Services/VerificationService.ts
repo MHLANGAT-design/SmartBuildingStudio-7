@@ -2,20 +2,37 @@
 
 import type { DaliDeviceDefinition } from '@/modules/DaliProgrammingStudio/types/device.types';
 import type { VerificationReport } from '@/modules/DaliProgrammingStudio/Verification/VerificationReport';
-import type { IGatewayAdapter } from '@/modules/DaliProgrammingStudio/types/gateway.types';
-import { ConfigurationVerificationManager } from '@/modules/DaliProgrammingStudio/Verification/ConfigurationVerificationManager';
+import { CommissioningApi } from '@/modules/Commissioning/services/CommissioningApi';
+import { store } from '@/Application/ConfigureStore';
 
 export class VerificationService {
-  private verificationManager: ConfigurationVerificationManager;
-
-  constructor(gateway: IGatewayAdapter) {
-    this.verificationManager = new ConfigurationVerificationManager(gateway);
-  }
-
+  /**
+   * Step 3: Verify the deployment against the physical gateway.
+   * The backend handles the read-back; the frontend provides the expected design.
+   */
   public async verifyDeployment(
     deploymentId: string,
     devices: DaliDeviceDefinition[]
   ): Promise<VerificationReport> {
-    return this.verificationManager.verifyAll(deploymentId, devices);
+    const sessionId = (store.getState() as any)?.commissioning?.activeSession?.sessionId;
+
+    if (!sessionId) {
+      throw new Error('No active commissioning session. Start one before verifying.');
+    }
+
+    const result = await CommissioningApi.verifyProgramming(deploymentId, devices, sessionId);
+
+    return {
+      deploymentId: result.deploymentId,
+      isFullyVerified: result.isFullyVerified,
+      verifiedAt: result.verifiedAt,
+      summary: {
+        matchingDevices: result.summary.matchingDevices,
+        mismatchedDevices: result.summary.mismatchedDevices,
+        passed: result.summary.passed,
+        failed: result.summary.failed,
+      },
+      results: result.results,
+    } as unknown as VerificationReport;
   }
 }

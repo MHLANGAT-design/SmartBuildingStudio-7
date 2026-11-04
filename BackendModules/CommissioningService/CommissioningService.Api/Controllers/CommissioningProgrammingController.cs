@@ -6,6 +6,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using CommissioningService.Api.Contracts.Requests;
 using CommissioningService.Application.Commands.DeployProgramming;
+using CommissioningService.Application.Commands.VerifyProgramming;
 
 namespace CommissioningService.Api.Controllers;
 
@@ -53,5 +54,24 @@ public class CommissioningProgrammingController : ControllerBase
             commandsFailed = result.CommandsFailed,
             errorMessage = result.ErrorMessage
         });
+    }
+
+    [HttpPost("verify")]
+    public async Task<ActionResult<object>> Verify(
+        Guid sessionId,
+        [FromBody] VerifyProgrammingRequest request)
+    {
+        var devices = request.ExpectedDevices.Select(d => new VerificationDeviceDto(
+            DeviceId: d.DeviceId,
+            HardwareAddress: d.HardwareAddress,
+            DeviceType: d.DeviceType,
+            Groups: d.Groups,
+            Scenes: d.Scenes.Select(s => new SceneLevelDto(s.SceneId, s.Level)).ToList()
+        )).ToList();
+
+        var command = new VerifyProgrammingCommand(sessionId, request.DeploymentId, devices);
+        var report = await _mediator.Send(command);
+
+        return Ok(report);
     }
 }

@@ -6,9 +6,9 @@ namespace CommissioningService.Domain.Entities;
 
 public class CommissioningDevice : Entity<CommissioningDeviceId>
 {
-    public string ExternalId { get; private set; } // e.g., the 'fx-179...' ID from the frontend
+    public string ExternalId { get; private set; } = string.Empty;
     public DeviceAddress? Address { get; private set; }
-    public string CommunicationStatus { get; private set; } // Using string to map cleanly to frontend enums
+    public string CommunicationStatus { get; private set; } = "UNKNOWN";
     public DateTime? LastResponseAt { get; private set; }
     public string? FirmwareVersion { get; private set; }
     public int? ErrorCode { get; private set; }

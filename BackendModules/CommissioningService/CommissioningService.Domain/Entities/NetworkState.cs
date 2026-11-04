@@ -5,8 +5,8 @@ namespace CommissioningService.Domain.Entities;
 
 public class NetworkState : Entity<Guid>
 {
-    public string LineId { get; private set; }
-    public string GatewayId { get; private set; }
+    public string LineId { get; private set; } = string.Empty;
+    public string GatewayId { get; private set; } = string.Empty;
     public bool IsConnected { get; private set; }
     public int TotalDevices { get; private set; }
     public int OnlineDevices { get; private set; }
@@ -30,7 +30,7 @@ public class NetworkState : Entity<Guid>
         TotalDevices = total;
         OnlineDevices = online;
         ErrorCount = errors;
-        IsConnected = true; // Assuming if we get a state update, it's connected
+        IsConnected = true;
         LastScanAt = DateTime.UtcNow;
     }
 }
