@@ -3,4 +3,5 @@
   <Project Path="GatewayManagementService.Application/GatewayManagementService.Application.csproj" />
   <Project Path="GatewayManagementService.Infrastructure/GatewayManagementService.Infrastructure.csproj" />
   <Project Path="GatewayManagementService.Api/GatewayManagementService.Api.csproj" />
+  <Project Path="GatewayManagementService.Tests/GatewayManagementService.Tests.csproj" />
 </Solution>
