@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="GatewayManagementService.Domain/GatewayManagementService.Domain.csproj" />
+  <Project Path="GatewayManagementService.Application/GatewayManagementService.Application.csproj" />
+  <Project Path="GatewayManagementService.Infrastructure/GatewayManagementService.Infrastructure.csproj" />
+  <Project Path="GatewayManagementService.Api/GatewayManagementService.Api.csproj" />
+</Solution>
