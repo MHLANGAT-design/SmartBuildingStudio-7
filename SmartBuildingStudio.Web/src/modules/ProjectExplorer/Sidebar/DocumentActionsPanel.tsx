@@ -2,7 +2,16 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Lightbulb, Zap, FilePlus, AlertTriangle, Cpu, Wrench } from "lucide-react";
+import {
+  Layers,
+  Lightbulb,
+  Zap,
+  FilePlus,
+  AlertTriangle,
+  Cpu,
+  Wrench,
+  Radio,          // NEW — icon for Device Discovery
+} from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/Application/ConfigureStore";
 import {
   selectSelectedNode,
@@ -10,8 +19,17 @@ import {
 import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 import { resetProgrammingState } from "@/modules/DaliProgrammingStudio/store/programmingSlice";
 import { resetDaliDocument } from "@/modules/DaliDesigner/store/daliSlice";
+import { clearSession } from "@/modules/DeviceDiscovery/Store/deviceDiscoverySlice";   // NEW
 
-type Mode = "floorplans" | "fixtures" | "dali" | "emergency" | "programming" | "commissioning" | "import";
+type Mode =
+  | "floorplans"
+  | "fixtures"
+  | "dali"
+  | "emergency"
+  | "programming"
+  | "commissioning"
+  | "import"
+  | "discovery";    // NEW
 
 interface ActionTile {
   mode: Mode;
@@ -27,6 +45,8 @@ const TILES: ActionTile[] = [
   { mode: "dali", label: "DALI Designer", hint: "Commission addresses, groups, scenes", icon: <Zap size={18} />, accent: "#8B5CF6" },
   { mode: "programming", label: "DALI Programming", hint: "Compile and deploy the approved DALI design", icon: <Cpu size={18} />, accent: "#22C55E" },
   { mode: "commissioning", label: "Commissioning", hint: "Test physical devices and generate report", icon: <Wrench size={18} />, accent: "#14B8A6" },
+  // ── NEW: Device Discovery — physical discovery against the connected gateway ──
+  { mode: "discovery", label: "Device Discovery", hint: "Discover physical DALI devices on the network", icon: <Radio size={18} />, accent: "#0EA5E9" },
   { mode: "emergency", label: "Emergency Lighting", hint: "Run compliance simulation and export safety reports", icon: <AlertTriangle size={18} />, accent: "#F43F5E" },
   { mode: "import", label: "Import Fresh DWG", hint: "Flush state and load a fresh DWG", icon: <FilePlus size={18} />, accent: "#F59E0B" },
 ];
@@ -120,6 +140,17 @@ export function DocumentActionsPanel() {
     if (mode === "commissioning") {
       if (!projectId) return;
       navigate(`/projects/${projectId}/floorplans/${documentId}/commissioning`);
+      return;
+    }
+
+    // ── NEW: Device Discovery ─────────────────────────────────────
+    // Clear any stale discovery session from a previous document before
+    // entering — a session is scoped to one project/building/floor/doc,
+    // and switching documents must not carry it over.
+    if (mode === "discovery") {
+      if (!projectId) return;
+      dispatch(clearSession());
+      navigate(`/projects/${projectId}/floorplans/${documentId}/discovery`);
       return;
     }
 

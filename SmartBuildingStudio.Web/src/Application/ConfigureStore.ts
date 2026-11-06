@@ -10,14 +10,16 @@ import ProjectExplorerReducer from "@/modules/ProjectExplorer/Store/ProjectExplo
 import FixtureReducer from "@/modules/FixturePlacementStudio/store/fixtureSlice";
 import { daliReducer } from "@/modules/DaliDesigner/store/daliSlice";
 import { emergencyReducer } from "@/modules/EmergencyLighting/store/emergencySlice";
-import { daliProgrammingReducer } from "@/modules/DaliProgrammingStudio/store"; // NEW
-import { commissioningReducer } from "@/modules/Commissioning"; // NEW (Commissioning)
+import { daliProgrammingReducer } from "@/modules/DaliProgrammingStudio/store";
+import { commissioningReducer } from "@/modules/Commissioning";
+import deviceDiscoveryReducer from "@/modules/DeviceDiscovery/Store/deviceDiscoverySlice";
 import documentVersionReducer from "@/modules/Shared/DocumentVersion/documentVersionSlice";
 import { fixtureHistoryMiddleware } from "@/modules/FixturePlacementStudio/store/fixtureHistoryMiddleware";
 
 import { ApplicationServices } from "@/Application/ApplicationServices";
 import { FloorPlanApi } from "@/modules/FloorPlanDesigner/Services/FloorPlanApi";
 import { ProjectExplorerApi } from "@/modules/ProjectExplorer/Services/ProjectExplorerApi";
+import { DeviceDiscoveryApi } from "@/modules/DeviceDiscovery/Services/DeviceDiscoveryApi";
 
 enableMapSet();
 
@@ -39,15 +41,22 @@ if (typeof window !== "undefined") {
 const servicesContainer: ApplicationServices = {
   floorPlanApi: floorPlanApiInstance,
   projectExplorerApi: projectExplorerApiInstance,
+  // DeviceDiscoveryApi is a plain object (not a class), so no `new`, no
+  // try/catch. The USE_MOCK switch lives in Services/apiConfig.ts, so this
+  // registration is identical for mock and real backends — flipping the
+  // switch is a one-line change there, not here.
+  deviceDiscoveryApi: DeviceDiscoveryApi,
 };
 
-// Explicit `: any` breaks the circular type inference that would
-// otherwise occur once the reducer map includes a reducer whose types
-// (transitively) reference RootState. Inferred types here would be
-// `store → reducers → RootState → store`, which TypeScript rejects.
-// The `RootState` alias below still produces the correct concrete type
-// for consumers; only the intermediate inference is bypassed.
-export const store: any = configureStore({
+// `store` is intentionally NOT annotated `: any`. `RootState` must be a real
+// type so every selector, thunk, hook, and component in DeviceDiscovery (and
+// the rest of the app) is compile-time checked. If removing `: any` surfaces
+// a circular-type error, the compiler will name the offending file — the fix
+// there is to convert its `RootState` import to `import type { RootState }
+// from "@/Application/ConfigureStore"`. Type-only imports are erased and do
+// not create runtime cycles. Every DeviceDiscovery file already uses
+// `import type`; if a cycle appears, it is in a pre-existing slice/middleware.
+export const store = configureStore({
   reducer: {
     floorPlan: FloorPlanReducer,
     dashboard: DashboardReducer,
@@ -55,11 +64,15 @@ export const store: any = configureStore({
     fixture: FixtureReducer,
     dali: daliReducer,
     emergency: emergencyReducer,
-    daliProgramming: daliProgrammingReducer, // NEW
-    commissioning: commissioningReducer,     // NEW (Commissioning)
+    daliProgramming: daliProgrammingReducer,
+    commissioning: commissioningReducer,
+    deviceDiscovery: deviceDiscoveryReducer,
     documentVersion: documentVersionReducer,
   },
-  middleware: (getDefaultMiddleware: any) =>
+  // `getDefaultMiddleware` is left inferred (no `: any`). The middleware chain
+  // type flows through `.concat(fixtureHistoryMiddleware)`; if that middleware
+  // has a loose type, the compiler will flag it here — not in DeviceDiscovery.
+  middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       thunk: { extraArgument: { services: servicesContainer } },
       serializableCheck: false,

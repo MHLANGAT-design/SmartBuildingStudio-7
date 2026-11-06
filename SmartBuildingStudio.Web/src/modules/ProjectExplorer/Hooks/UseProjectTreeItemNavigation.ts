@@ -7,7 +7,14 @@ import { ExplorerNode } from "../Models/ExplorerNode";
 import { setDocumentMetadata } from "@/modules/FloorPlanDesigner/Store/FloorPlanSlice";
 import { UseProjectTreeItemContext } from "./UseProjectTreeItemContext";
 
-export type DesignMode = "floorplans" | "import" | "fixtures" | "dali" | "programming" | "commissioning";
+export type DesignMode =
+  | "floorplans"
+  | "import"
+  | "fixtures"
+  | "dali"
+  | "programming"
+  | "commissioning"
+  | "discovery";   // NEW
 
 export function UseProjectTreeItemNavigation() {
   const dispatch = useAppDispatch();
@@ -84,6 +91,14 @@ export function UseProjectTreeItemNavigation() {
         return;
       }
 
+      // ── Device Discovery ──────  NEW
+      if (mode === "discovery") {
+        const projectId = context.projectId;
+        if (!projectId) return;
+        navigate(`/projects/${projectId}/floorplans/${documentId}/discovery`);
+        return;
+      }
+
       // ── FPD, FPS, Import ──────────────
       const urlMode =
         mode === "import" ? "floorplans" :
@@ -136,6 +151,11 @@ export function UseProjectTreeItemNavigation() {
 
       if (intent === "commissioning") {
         executeMode(String(documentId), context, docName, "commissioning");
+        return;
+      }
+
+      if (intent === "discovery") {                        // NEW
+        executeMode(String(documentId), context, docName, "discovery");
         return;
       }
 

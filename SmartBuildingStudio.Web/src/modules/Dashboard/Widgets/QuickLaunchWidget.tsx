@@ -51,18 +51,26 @@ export default function QuickLaunchWidget() {
       accent: "#22C55E",
     },
     {
-      name: "Emergency Lighting",
-      shortLabel: "Emergency",
-      path: "/explorer?intent=emergency",
-      icon: "🚨",
-      accent: "#F43F5E",
-    },
-    {
       name: "Commissioning",
       shortLabel: "Commission",
       path: "/explorer?intent=commissioning",
       icon: "🛠️",
       accent: "#14B8A6",
+    },
+    // ── NEW: Device Discovery ────────────────────────────────────────
+    {
+      name: "Device Discovery",
+      shortLabel: "Discover",
+      path: "/explorer?intent=discovery",
+      icon: "📡",
+      accent: "#0EA5E9",
+    },
+    {
+      name: "Emergency Lighting",
+      shortLabel: "Emergency",
+      path: "/explorer?intent=emergency",
+      icon: "🚨",
+      accent: "#F43F5E",
     },
     {
       name: "Compliance Reports Panel",
