@@ -57,16 +57,32 @@ export default defineConfig({
       },
 
       // ─── Commissioning Service ───────────────────────────────────────
-      // Stand up a CommissioningService.Api at 5200 alongside the other
-      // backend services. Until it exists, requests will 404 and the
-      // CommissioningApi USE_MOCK fallback (see services/CommissioningApi.ts)
-      // should be enabled.
+      // Two entries so both URL shapes work:
+      //   /api/v1/commissioning/*  → rewrite to /api/commissioning/* → 5200
+      //   /api/commissioning/*     → passthrough                    → 5200
       '^/api/v1/commissioning': {
         target: 'http://127.0.0.1:5200',
         changeOrigin: true,
         secure: false,
         rewrite: (path) =>
           path.replace(/^\/api\/v1\/commissioning/, '/api/commissioning'),
+      },
+      '^/api/commissioning': {
+        target: 'http://127.0.0.1:5200',
+        changeOrigin: true,
+        secure: false,
+      },
+
+      // ─── Gateway Management ─────────────────────────────────────────
+      '^/api/v1/gateways': {
+        target: 'http://127.0.0.1:5100',
+        changeOrigin: true,
+        secure: false,
+      },
+      '^/api/v1/gateway-integration': {
+        target: 'http://127.0.0.1:5100',
+        changeOrigin: true,
+        secure: false,
       },
 
       // ─── ProductCatalogService ───────────────────────────────────────

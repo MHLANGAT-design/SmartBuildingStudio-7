@@ -19,6 +19,7 @@ import { DaliProgrammingStudioPage } from '@/modules/DaliProgrammingStudio';
 import { EmergencyLightingPage } from '@/modules/EmergencyLighting';
 import { CommissioningPage } from '@/modules/Commissioning';
 import { DeviceDiscoveryPage } from '@/modules/DeviceDiscovery';
+import { GatewayManagementPage } from '@/modules/GatewayManagement';
 import { ManufacturerAdminPage } from '@/modules/Admin/ManufacturerAdminPage';
 
 import { clearDocument } from '@/modules/FloorPlanDesigner/Store/FloorPlanSlice';
@@ -95,6 +96,17 @@ const DeviceDiscoveryRoute = () => {
   }>();
 
   return <DeviceDiscoveryPage />;
+};
+
+/**
+ * Project-scoped gateway management. The project id is in the URL path,
+ * and buildingId / floorId / documentId come in as query params (set by
+ * ProjectExplorer when the user launches Gateway Management from the
+ * Document Actions panel).
+ */
+const GatewayManagementRoute = () => {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <GatewayManagementPage />;
 };
 
 const DesignerRoute = () => {
@@ -188,6 +200,36 @@ const DesignerRoute = () => {
       const target = `/projects/${projectId}/floorplans/${floorplanId}/discovery`;
       return <Navigate to={target} replace />;
     }
+    case 'gateways': {
+      // Gateways are project-scoped; floorplan is not required.
+      const projectId = searchParams.get('projectId') || undefined;
+      const buildingId = searchParams.get('buildingId') || '';
+      const floorId = searchParams.get('floorId') || '';
+      const documentId = searchParams.get('documentId') || '';
+
+      if (!projectId) {
+        return (
+          <div style={{ padding: 20, color: '#FFF', fontFamily: 'monospace' }}>
+            <h1>Gateway Management</h1>
+            <p>Missing required context.</p>
+            <p>
+              Provide <code>?projectId=…</code> or open the deep link from
+              ProjectExplorer.
+            </p>
+          </div>
+        );
+      }
+
+      const qs = new URLSearchParams();
+      if (buildingId) qs.set('buildingId', buildingId);
+      if (floorId) qs.set('floorId', floorId);
+      if (documentId) qs.set('documentId', documentId);
+
+      const target = qs.toString()
+        ? `/projects/${projectId}/gateways?${qs.toString()}`
+        : `/projects/${projectId}/gateways`;
+      return <Navigate to={target} replace />;
+    }
     case 'emergency':
       return <EmergencyLightingPage />;
     case 'import':
@@ -234,6 +276,15 @@ const App = () => {
           <Route path="/commissioning" element={<CommissioningPage />} />
           <Route path="/discovery" element={<DeviceDiscoveryPage />} />
 
+          {/* ── Gateway Management — project-scoped, launched from Explorer ── */}
+          <Route
+            path="/projects/:projectId/gateways"
+            element={<GatewayManagementRoute />}
+          />
+
+          {/* Fallback for direct URL with no project context */}
+          <Route path="/gateways" element={<GatewayManagementPage />} />
+
           <Route path="/admin/manufacturers" element={<ManufacturerAdminPage />} />
 
           <Route path="/designer/floorplan" element={<Navigate to="/designer?mode=floorplans" replace />} />
@@ -245,6 +296,7 @@ const App = () => {
           <Route path="/designer/commissioning" element={<Navigate to="/designer?mode=commissioning" replace />} />
           <Route path="/designer/discovery" element={<Navigate to="/designer?mode=discovery" replace />} />
           <Route path="/designer/emergency" element={<Navigate to="/designer?mode=emergency" replace />} />
+          <Route path="/designer/gateways" element={<Navigate to="/designer?mode=gateways" replace />} />
 
           <Route
             path="*"

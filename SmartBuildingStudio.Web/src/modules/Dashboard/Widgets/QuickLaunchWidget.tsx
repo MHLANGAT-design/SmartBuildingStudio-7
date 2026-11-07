@@ -57,7 +57,14 @@ export default function QuickLaunchWidget() {
       icon: "🛠️",
       accent: "#14B8A6",
     },
-    // ── NEW: Device Discovery ────────────────────────────────────────
+    // ── Gateway Management routes through Explorer, like every other module ──
+    {
+      name: "Gateway Management",
+      shortLabel: "Gateways",
+      path: "/explorer?intent=gateways",
+      icon: "🛰️",
+      accent: "#64748B",
+    },
     {
       name: "Device Discovery",
       shortLabel: "Discover",

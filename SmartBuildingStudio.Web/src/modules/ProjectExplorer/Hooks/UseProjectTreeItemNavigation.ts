@@ -14,7 +14,8 @@ export type DesignMode =
   | "dali"
   | "programming"
   | "commissioning"
-  | "discovery";   // NEW
+  | "discovery"
+  | "gateways";   // NEW
 
 export function UseProjectTreeItemNavigation() {
   const dispatch = useAppDispatch();
@@ -91,11 +92,28 @@ export function UseProjectTreeItemNavigation() {
         return;
       }
 
-      // ── Device Discovery ──────  NEW
+      // ── Device Discovery ──────
       if (mode === "discovery") {
         const projectId = context.projectId;
         if (!projectId) return;
         navigate(`/projects/${projectId}/floorplans/${documentId}/discovery`);
+        return;
+      }
+
+      // ── Gateway Management ─────  NEW
+      // Gateways are assigned to projects (not to a single floorplan), so
+      // the destination is project-scoped. The document id is passed in
+      // the query string so the page can default to that building/floor
+      // when creating a new gateway assignment.
+      if (mode === "gateways") {
+        const projectId = context.projectId;
+        if (!projectId) return;
+        const params = new URLSearchParams({
+          buildingId: context.buildingId || "",
+          floorId: context.floorId || "",
+          documentId: String(documentId),
+        });
+        navigate(`/projects/${projectId}/gateways?${params.toString()}`);
         return;
       }
 
@@ -154,8 +172,13 @@ export function UseProjectTreeItemNavigation() {
         return;
       }
 
-      if (intent === "discovery") {                        // NEW
+      if (intent === "discovery") {
         executeMode(String(documentId), context, docName, "discovery");
+        return;
+      }
+
+      if (intent === "gateways") {                          // NEW
+        executeMode(String(documentId), context, docName, "gateways");
         return;
       }
 

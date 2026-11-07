@@ -27,19 +27,6 @@ export const DiscoveredDeviceLayer: React.FC<Props> = ({ worldToScreen }) => {
   const selectedId = useAppSelector(selectSelectedDeviceId);
   const fixturePlacements = useAppSelector(selectDesignFixturePlacements);
 
-  // ─── DEBUG: what is the layer actually receiving? ───────────────
-  const firstWithMatch = devices.find(d => d.matchedFixtureId);
-  const firstPlacementKey = Object.keys(fixturePlacements)[0];
-  console.log('[DiscoveredDeviceLayer]', {
-    deviceCount: devices.length,
-    matchedCount: devices.filter(d => d.status === 'MATCHED').length,
-    deviceWithMatchId: firstWithMatch?.matchedFixtureId,
-    placementKeyCount: Object.keys(fixturePlacements).length,
-    firstPlacementKey,
-    idsMatch: firstWithMatch?.matchedFixtureId === firstPlacementKey,
-  });
-  // ────────────────────────────────────────────────────────────────
-
   return (
     <>
       {devices.map(device => {

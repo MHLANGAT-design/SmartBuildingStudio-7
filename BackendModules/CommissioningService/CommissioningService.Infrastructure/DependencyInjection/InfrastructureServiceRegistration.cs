@@ -72,10 +72,17 @@ public static class InfrastructureServiceRegistration
             client.Timeout = TimeSpan.FromSeconds(gatewayOptions?.TimeoutSeconds ?? 30);
         });
 
+        // ── CHANGED ──
+        // Was: configuration["Services:DeviceDiscoveryUrl"] ?? "http://localhost:5003"
+        // There is no DeviceDiscovery backend on 5003. GatewayManagement is
+        // the service that actually owns and talks to gateways — reuse the
+        // same base URL and timeout as GatewayManagementClient above.
         services.AddHttpClient<DeviceDiscoveryClient>(client =>
         {
-            client.BaseAddress = new Uri(configuration["Services:DeviceDiscoveryUrl"] ?? "http://localhost:5003");
+            client.BaseAddress = new Uri(gatewayOptions?.BaseUrl ?? "http://localhost:5002");
+            client.Timeout = TimeSpan.FromSeconds(gatewayOptions?.TimeoutSeconds ?? 30);
         });
+        // ── END CHANGED ──
 
         services.AddHttpClient<DaliDesignClient>(client =>
         {

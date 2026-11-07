@@ -31,7 +31,24 @@ public class DiscoverDevicesHandler : IRequestHandler<DiscoverDevicesCommand, Un
         if (session == null) throw new CommissioningSessionNotFoundException(request.SessionId);
 
         // 1. Get physical devices from the gateway integration
-        var discoveredDevices = await _discoveryProvider.DiscoverDevicesAsync(request.GatewayId, request.LineId, cancellationToken);
+        var discoveredDevices = await _discoveryProvider.DiscoverDevicesAsync(
+            request.GatewayId,
+            request.LineId,
+            cancellationToken);
+
+        // ── NEW ──
+        // The DiscoverDevices command is reached from /devices/discover, which
+        // the frontend calls as its single discovery action. The domain
+        // aggregate requires Idle → Discovering → Addressing, and the
+        // Idle → Discovering transition (StartCommissioningSessionCommand)
+        // has no HTTP route. Perform it here so this handler is
+        // self-sufficient: Idle sessions auto-transition before
+        // RegisterDevice/CompleteDiscovery enforce their guards.
+        if (session.Status.Value == CommissioningStatus.StatusValue.Idle)
+        {
+            _domainService.StartDiscovery(session);
+        }
+        // ── END NEW ──
 
         // 2. Register them in the domain aggregate
         foreach (var externalId in discoveredDevices)

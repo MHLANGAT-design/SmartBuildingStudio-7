@@ -20,6 +20,7 @@ import {
 import { stopDiscovery } from '@/modules/DeviceDiscovery/Store/deviceDiscoveryThunks';
 
 import { useDiscoveryProgress } from '@/modules/DeviceDiscovery/Hooks/useDiscoveryProgress';
+import { useAvailableGateways } from '@/modules/DeviceDiscovery/Hooks/useAvailableGateways';
 
 import {
   deviceDiscoveryWorkflow,
@@ -44,10 +45,6 @@ import { DiscoveryResults } from '@/modules/DeviceDiscovery/Components/Discovery
 import { DeviceDiscoveryCanvas } from '@/modules/DeviceDiscovery/Canvas/DeviceDiscoveryCanvas';
 import { CollapsibleSection } from '@/modules/DeviceDiscovery/Components/CollapsibleSection/CollapsibleSection';
 
-const MOCK_GATEWAYS = [
-  { gatewayId: 'gw-mock-001', name: 'Mock Gateway 1', isConnected: true },
-];
-
 export const DeviceDiscoveryPage: React.FC = () => {
   const dispatch = useAppDispatch();
 
@@ -62,19 +59,53 @@ export const DeviceDiscoveryPage: React.FC = () => {
   const firstError = useAppSelector(selectFirstError);
   const floorplan = useAppSelector(selectFloorplan);
 
+  const {
+    gateways: availableGateways,
+    firstConnectedId,
+    firstAvailableId,
+    isEmpty: noGatewaysAvailable,
+    hasAnyConnected,
+    assignedForProject,
+  } = useAvailableGateways();
+
   const projectId = projectIdFromUrl || floorplan?.projectId || '';
   const buildingId = floorplan?.buildingId || '';
   const drawingDocumentId = documentIdFromUrl || floorplan?.documentId || '';
 
-  const [selectedGatewayId, setSelectedGatewayId] = useState<string>(
-    MOCK_GATEWAYS[0]?.gatewayId ?? ''
-  );
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string>('');
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<ValidationIssue[]>([]);
 
   const progress = useDiscoveryProgress({ pollMs: 0 });
 
   const linesForDrawing = useMemo(() => floorplan?.daliLines ?? [], [floorplan]);
+
+  /* Auto-select: preferred (assigned to project) → connected → any */
+  useEffect(() => {
+    const stillExists = selectedGatewayId
+      ? availableGateways.some(g => g.gatewayId === selectedGatewayId)
+      : false;
+    if (stillExists) return;
+
+    const preferred = assignedForProject(projectId || null);
+    const nextId = preferred ?? firstConnectedId ?? firstAvailableId ?? '';
+
+    if (nextId && nextId !== selectedGatewayId) {
+      setSelectedGatewayId(nextId);
+      dispatch(selectGateway(nextId));
+    } else if (!nextId && selectedGatewayId) {
+      setSelectedGatewayId('');
+      dispatch(selectGateway(null));
+    }
+  }, [
+    availableGateways,
+    firstConnectedId,
+    firstAvailableId,
+    selectedGatewayId,
+    projectId,
+    assignedForProject,
+    dispatch,
+  ]);
 
   useEffect(() => {
     if (linesForDrawing.length > 0 && !selectedLineId) {
@@ -139,9 +170,6 @@ export const DeviceDiscoveryPage: React.FC = () => {
     setFormErrors(issues);
     if (issues.length > 0) return;
 
-    // Clear any previous session/devices before starting a new scan.
-    // This is what fixes the "unknown until hard refresh" bug when
-    // navigating between modules.
     dispatch(clearSession());
     dispatch(clearErrors());
 
@@ -267,7 +295,6 @@ export const DeviceDiscoveryPage: React.FC = () => {
       )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {/* ---- Left Sidebar ---- */}
         <aside
           aria-label="Discovery context"
           style={{
@@ -280,29 +307,55 @@ export const DeviceDiscoveryPage: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Context panels (collapsible) */}
           <CollapsibleSection title="Gateway" defaultOpen={false}>
-            <select
-              value={selectedGatewayId}
-              onChange={e => handleGatewaySelect(e.target.value)}
-              disabled={isDiscovering}
-              style={{
-                width: '100%',
-                padding: '4px 6px',
-                background: '#1E293B',
-                color: '#E5E7EB',
-                border: '1px solid #1F2937',
-                borderRadius: 4,
-                fontSize: 11,
-              }}
-            >
-              {MOCK_GATEWAYS.map(g => (
-                <option key={g.gatewayId} value={g.gatewayId}>
-                  {g.name}
-                  {g.isConnected ? '' : ' (offline)'}
-                </option>
-              ))}
-            </select>
+            {noGatewaysAvailable ? (
+              <div style={{ fontSize: 11, color: '#64748B', padding: '4px 0' }}>
+                No gateways available — check Gateway Management.
+              </div>
+            ) : (
+              <select
+                value={selectedGatewayId}
+                onChange={e => handleGatewaySelect(e.target.value)}
+                disabled={isDiscovering}
+                style={{
+                  width: '100%',
+                  padding: '4px 6px',
+                  background: '#1E293B',
+                  color: '#E5E7EB',
+                  border: '1px solid #1F2937',
+                  borderRadius: 4,
+                  fontSize: 11,
+                }}
+              >
+                {availableGateways.map(g => {
+                  const isAssigned = projectId
+                    ? assignedForProject(projectId) === g.gatewayId
+                    : false;
+                  return (
+                    <option key={g.gatewayId} value={g.gatewayId}>
+                      {g.name}
+                      {isAssigned ? ' — assigned to this project' : ''}
+                      {!g.isConnected ? ' (' + g.connectionStatus.toLowerCase() + ')' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+            {!noGatewaysAvailable && !hasAnyConnected && (
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: '4px 8px',
+                  background: '#3F2D0F',
+                  border: '1px solid #FBBF24',
+                  borderRadius: 4,
+                  color: '#FBBF24',
+                  fontSize: 10,
+                }}
+              >
+                No gateway is connected. Connect one in Gateway Management before starting discovery.
+              </div>
+            )}
           </CollapsibleSection>
 
           <CollapsibleSection title="Project" defaultOpen={false}>
@@ -327,13 +380,11 @@ export const DeviceDiscoveryPage: React.FC = () => {
             />
           </CollapsibleSection>
 
-          {/* Device list — the main event */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <DiscoveredDeviceList />
           </div>
         </aside>
 
-        {/* ---- Main Content ---- */}
         <main
           style={{
             flex: 1,
@@ -399,7 +450,6 @@ export const DeviceDiscoveryPage: React.FC = () => {
           </div>
         </main>
 
-        {/* ---- Right Sidebar ---- */}
         <aside
           aria-label="Device inspector"
           style={{
