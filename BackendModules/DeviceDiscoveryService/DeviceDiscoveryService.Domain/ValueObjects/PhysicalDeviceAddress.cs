@@ -10,9 +10,10 @@ namespace DeviceDiscoveryService.Domain.ValueObjects;
 /// </summary>
 public sealed class PhysicalDeviceAddress : IEquatable<PhysicalDeviceAddress>
 {
-    public string LineId { get; }
+    public string LineId { get; private set; } = string.Empty;
+
     /// <summary>DALI short address, 0-63. Null when the device is not yet addressed.</summary>
-    public int? ShortAddress { get; }
+    public int? ShortAddress { get; private set; }
 
     public PhysicalDeviceAddress(string lineId, int? shortAddress)
     {
@@ -25,6 +26,9 @@ public sealed class PhysicalDeviceAddress : IEquatable<PhysicalDeviceAddress>
         LineId = lineId.Trim();
         ShortAddress = shortAddress;
     }
+
+    /// <summary>EF Core only — not for domain use.</summary>
+    private PhysicalDeviceAddress() { }
 
     public static PhysicalDeviceAddress Unaddressed(string lineId) => new(lineId, null);
     public bool IsAddressed => ShortAddress.HasValue;

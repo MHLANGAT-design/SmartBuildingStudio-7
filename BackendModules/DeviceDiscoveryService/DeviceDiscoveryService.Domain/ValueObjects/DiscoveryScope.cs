@@ -12,8 +12,8 @@ namespace DeviceDiscoveryService.Domain.ValueObjects;
 /// </summary>
 public sealed class DiscoveryScope : IEquatable<DiscoveryScope>
 {
-    public string GatewayId { get; }
-    public IReadOnlyCollection<string> LineIds { get; }
+    public string GatewayId { get; private set; } = string.Empty;
+    public IReadOnlyCollection<string> LineIds { get; private set; } = Array.Empty<string>();
 
     public DiscoveryScope(string gatewayId, IEnumerable<string> lineIds)
     {
@@ -31,6 +31,9 @@ public sealed class DiscoveryScope : IEquatable<DiscoveryScope>
         GatewayId = gatewayId.Trim();
         LineIds = lines.AsReadOnly();
     }
+
+    /// <summary>EF Core only — not for domain use.</summary>
+    private DiscoveryScope() { }
 
     public static DiscoveryScope SingleLine(string gatewayId, string lineId)
         => new(gatewayId, new[] { lineId });
