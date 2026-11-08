@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+    <RootNamespace>DeviceDiscoveryService.Domain</RootNamespace>
+
+    <!--
+      CS8618: Non-nullable property must contain a non-null value when exiting constructor.
+      Suppressed because EF Core requires parameterless constructors on entities;
+      EF populates the non-nullable properties at materialization time.
+    -->
+    <NoWarn>$(NoWarn);CS8618</NoWarn>
+  </PropertyGroup>
+
+</Project>
