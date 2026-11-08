@@ -1,6 +1,7 @@
 // Persistence/Repositories/DiscoverySessionRepository.cs
 
 using DeviceDiscoveryService.Domain.Aggregates;
+using DeviceDiscoveryService.Domain.Entities;
 using DeviceDiscoveryService.Domain.Repositories;
 using DeviceDiscoveryService.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
@@ -18,10 +19,8 @@ public sealed class DiscoverySessionRepository : IDiscoverySessionRepository
         CancellationToken cancellationToken = default)
     {
         return _db.DiscoverySessions
-            .Include(s => s.Devices)
-                .ThenInclude(d => d.Identification)
-            .Include(s => s.Devices)
-                .ThenInclude(d => d.Match)
+            .Include(s => s.Devices).ThenInclude(d => d.Identification)
+            .Include(s => s.Devices).ThenInclude(d => d.Match)
             .Include(s => s.History)
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
@@ -35,8 +34,7 @@ public sealed class DiscoverySessionRepository : IDiscoverySessionRepository
     }
 
     public async Task<IReadOnlyList<DiscoverySession>> GetByProjectAsync(
-        Guid projectId,
-        CancellationToken cancellationToken = default)
+        Guid projectId, CancellationToken cancellationToken = default)
     {
         return await _db.DiscoverySessions
             .Where(s => s.ProjectId == projectId)
@@ -45,9 +43,7 @@ public sealed class DiscoverySessionRepository : IDiscoverySessionRepository
     }
 
     public async Task<IReadOnlyList<DiscoverySession>> GetByFloorAsync(
-        Guid projectId,
-        Guid floorId,
-        CancellationToken cancellationToken = default)
+        Guid projectId, Guid floorId, CancellationToken cancellationToken = default)
     {
         return await _db.DiscoverySessions
             .Where(s => s.ProjectId == projectId && s.FloorId == floorId)
@@ -56,8 +52,7 @@ public sealed class DiscoverySessionRepository : IDiscoverySessionRepository
     }
 
     public async Task<IReadOnlyList<DiscoverySession>> GetRecentAsync(
-        int take,
-        CancellationToken cancellationToken = default)
+        int take, CancellationToken cancellationToken = default)
     {
         return await _db.DiscoverySessions
             .OrderByDescending(s => s.CreatedAt)
@@ -73,9 +68,20 @@ public sealed class DiscoverySessionRepository : IDiscoverySessionRepository
 
     public async Task UpdateAsync(DiscoverySession session, CancellationToken cancellationToken = default)
     {
-        // The session is already tracked if loaded via GetByIdAsync; SaveChanges
-        // picks up all modifications (including child collection changes).
-        _db.DiscoverySessions.Update(session);
+        // DiscoveryHistoryEntry objects added to an already-tracked session
+        // are wrongly marked 'Modified' because they have a Guid PK set at
+        // creation. EF issues UPDATE ... WHERE Id = @new-guid, hitting 0 rows,
+        // and throws DbUpdateConcurrencyException. History entries are
+        // immutable audit rows — once saved they're never updated — so any
+        // 'Modified' state means "new entity added during this request".
+        // Re-tag as Added so EF issues INSERT.
+        foreach (var historyEntry in session.History)
+        {
+            var entry = _db.Entry(historyEntry);
+            if (entry.State == EntityState.Modified)
+                entry.State = EntityState.Added;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 }
